@@ -1,0 +1,2767 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#1a0a2e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.json">
+<title>Fairylandia</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #1a0a2e; overflow: hidden; display: flex; justify-content: center; align-items: center; height: 100vh; touch-action: none; }
+canvas { cursor: default; }
+</style>
+</head>
+<body>
+<canvas id="display"></canvas>
+<script>
+// ============================================================
+// FAIRYLANDIA - A magical fairy adventure game
+// ============================================================
+
+// --- CONFIGURATION ---
+const W = 480, H = 270; // Logical resolution
+const RSCALE = 2; // Render at 2x for smooth look
+const LANE_Y = [95, 150, 205]; // Top, Mid, Bottom lane centers
+const PLAYER_X = 80;
+const GRAVITY = 0;
+const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+
+const PASTEL = {
+  pink: '#FFB5E8', purple: '#D5AAFF', blue: '#85E3FF',
+  green: '#B5FFB5', yellow: '#FFFFD1', orange: '#FFCFAB',
+  white: '#FFFFFF', skin: '#FFDAB9', skinDark: '#F0C8A0',
+  darkFairy: '#2D2D2D', darkWing: '#4A4A4A', red: '#FF6B6B',
+  bgTop: '#E8D5F5', bgBot: '#FFE5EC', ground: '#C8E6C8',
+  groundDark: '#A8D4A8',
+};
+
+// --- COSMETICS DATA ---
+const COSMETICS = {
+  hair: [
+    { id: 'hair_0', name: 'Pink Flow', color: '#FFB5E8', cost: 0, style: 0 },
+    { id: 'hair_1', name: 'Purple Curls', color: '#D5AAFF', cost: 0, style: 1 },
+    { id: 'hair_2', name: 'Blue Waves', color: '#85E3FF', cost: 0, style: 2 },
+    { id: 'hair_3', name: 'Golden Locks', color: '#FFFFD1', cost: 1, style: 0 },
+    { id: 'hair_4', name: 'Mint Braids', color: '#B5FFB5', cost: 1, style: 1 },
+    { id: 'hair_5', name: 'Red Pigtails', color: '#FF8888', cost: 1, style: 2 },
+    { id: 'hair_6', name: 'Silver Long', color: '#D8D8E8', cost: 1, style: 0 },
+    { id: 'hair_7', name: 'Peach Bun', color: '#FFCFAB', cost: 1, style: 1 },
+  ],
+  wings: [
+    { id: 'wing_0', name: 'Lavender', color: '#D5AAFF', cost: 0, shape: 0 },
+    { id: 'wing_1', name: 'Rose', color: '#FFB5E8', cost: 0, shape: 0 },
+    { id: 'wing_2', name: 'Sky', color: '#85E3FF', cost: 0, shape: 0 },
+    { id: 'wing_3', name: 'Sunset', color: '#FFCFAB', cost: 1, shape: 1 },
+    { id: 'wing_4', name: 'Emerald', color: '#B5FFB5', cost: 1, shape: 1 },
+    { id: 'wing_5', name: 'Rainbow', color: '#FFB5E8', cost: 1, shape: 2, rainbow: true },
+    { id: 'wing_6', name: 'Starlight', color: '#FFFFD1', cost: 1, shape: 1 },
+    { id: 'wing_7', name: 'Crystal', color: '#E0F0FF', cost: 1, shape: 2 },
+  ],
+  outfits: [
+    { id: 'outfit_0', name: 'Pink Dress', color: '#FFB5E8', accent: '#FF9ED2', cost: 0 },
+    { id: 'outfit_1', name: 'Blue Gown', color: '#85E3FF', accent: '#5BC8E8', cost: 0 },
+    { id: 'outfit_2', name: 'Purple Robe', color: '#D5AAFF', accent: '#B88AE8', cost: 0 },
+    { id: 'outfit_3', name: 'Golden Tunic', color: '#FFFFD1', accent: '#FFE066', cost: 1 },
+    { id: 'outfit_4', name: 'Coral Skirt', color: '#FFCFAB', accent: '#FFB088', cost: 1 },
+    { id: 'outfit_5', name: 'Mint Dress', color: '#B5FFB5', accent: '#88DD88', cost: 1 },
+    { id: 'outfit_6', name: 'Star Gown', color: '#E8D0FF', accent: '#C8A0E8', cost: 1 },
+  ],
+  eyes: [
+    { id: 'eye_0', name: 'Brown', color: '#4A3728', cost: 0 },
+    { id: 'eye_1', name: 'Blue', color: '#4488CC', cost: 0 },
+    { id: 'eye_2', name: 'Green', color: '#448844', cost: 0 },
+    { id: 'eye_3', name: 'Violet', color: '#8844AA', cost: 1 },
+    { id: 'eye_4', name: 'Amber', color: '#CC8833', cost: 1 },
+    { id: 'eye_5', name: 'Pink', color: '#CC4488', cost: 1 },
+  ],
+  shoes: [
+    { id: 'shoe_0', name: 'Match Outfit', color: null, cost: 0 },
+    { id: 'shoe_1', name: 'White', color: '#FFFFFF', cost: 0 },
+    { id: 'shoe_2', name: 'Pink', color: '#FFB5E8', cost: 0 },
+    { id: 'shoe_3', name: 'Gold', color: '#FFD700', cost: 1 },
+    { id: 'shoe_4', name: 'Silver', color: '#C0C0C0', cost: 1 },
+    { id: 'shoe_5', name: 'Ruby', color: '#FF4444', cost: 1 },
+  ],
+  accessories: [
+    { id: 'acc_0', name: 'None', type: 'none', color: null, cost: 0 },
+    { id: 'acc_1', name: 'Tiara', type: 'tiara', color: '#FFD700', cost: 1 },
+    { id: 'acc_2', name: 'Bow', type: 'bow', color: '#FFB5E8', cost: 1 },
+    { id: 'acc_3', name: 'Flower', type: 'flower', color: '#FF88AA', cost: 1 },
+    { id: 'acc_4', name: 'Star Pin', type: 'star', color: '#FFD700', cost: 1 },
+    { id: 'acc_5', name: 'Necklace', type: 'necklace', color: '#88DDFF', cost: 1 },
+  ],
+};
+
+// --- SAVE DATA ---
+const SaveData = {
+  data: null,
+  defaults() {
+    return {
+      unlockedLevel: 1,
+      diamondBalance: 0,
+      cosmeticsOwned: ['hair_0','hair_1','hair_2','wing_0','wing_1','wing_2','outfit_0','outfit_1','outfit_2','eye_0','eye_1','eye_2','shoe_0','shoe_1','shoe_2','acc_0'],
+      equipped: { hairId: 'hair_0', wingId: 'wing_0', outfitId: 'outfit_0', eyeId: 'eye_0', shoeId: 'shoe_0', accId: 'acc_0' },
+    };
+  },
+  load() {
+    try {
+      const s = localStorage.getItem('fairylandia_save');
+      this.data = s ? JSON.parse(s) : this.defaults();
+    } catch(e) { this.data = this.defaults(); }
+  },
+  save() {
+    try { localStorage.setItem('fairylandia_save', JSON.stringify(this.data)); } catch(e) {}
+  },
+  owns(id) { return this.data.cosmeticsOwned.includes(id); },
+  buy(id) {
+    if (this.data.diamondBalance >= 1 && !this.owns(id)) {
+      this.data.diamondBalance--;
+      this.data.cosmeticsOwned.push(id);
+      this.save();
+      return true;
+    }
+    return false;
+  },
+  equip(type, id) {
+    if (type === 'hair') this.data.equipped.hairId = id;
+    if (type === 'wings') this.data.equipped.wingId = id;
+    if (type === 'outfits') this.data.equipped.outfitId = id;
+    if (type === 'eyes') this.data.equipped.eyeId = id;
+    if (type === 'shoes') this.data.equipped.shoeId = id;
+    if (type === 'accessories') this.data.equipped.accId = id;
+    this.save();
+  },
+  addDiamonds(n) { this.data.diamondBalance += n; this.save(); },
+  unlockNext() {
+    if (this.data.unlockedLevel < 10) this.data.unlockedLevel++;
+    this.save();
+  },
+};
+
+// --- INPUT ---
+const Input = {
+  keys: {},
+  justPressed: {},
+  touches: [],
+  clicks: [],
+  activeTouches: new Set(),
+  // Swipe detection
+  swipes: [], // [{dir: 'up'|'down'|'left'|'right'}]
+  touchStarts: {}, // id -> {x, y, time}
+  touchPositions: {}, // id -> {x, y} (current positions for hold detection)
+  // Hold detection
+  holdingCrouch: false, // true if a touch is held in the crouch zone
+  // Touch feedback
+  touchedButtons: {}, // buttonKey -> true (for visual feedback)
+  // Double-tap detection
+  lastTapTime: 0,
+  lastTapX: 0,
+  lastTapY: 0,
+  doubleTap: false,
+  init() {
+    window.addEventListener('keydown', e => {
+      if (!this.keys[e.code]) this.justPressed[e.code] = true;
+      this.keys[e.code] = true;
+      e.preventDefault();
+    });
+    window.addEventListener('keyup', e => { this.keys[e.code] = false; });
+    const canvas = document.getElementById('display');
+    canvas.addEventListener('click', e => {
+      if (isMobile) return; // touches handle mobile clicks
+      const rect = canvas.getBoundingClientRect();
+      const sx = W / rect.width, sy = H / rect.height;
+      this.clicks.push({ x: (e.clientX - rect.left) * sx, y: (e.clientY - rect.top) * sy });
+    });
+    canvas.addEventListener('touchstart', e => {
+      e.preventDefault();
+      const rect = canvas.getBoundingClientRect();
+      const sx = W / rect.width, sy = H / rect.height;
+      for (const t of e.changedTouches) {
+        const tx = (t.clientX - rect.left) * sx;
+        const ty = (t.clientY - rect.top) * sy;
+        this.clicks.push({ x: tx, y: ty });
+        this.activeTouches.add(t.identifier);
+        this.touchStarts[t.identifier] = { x: tx, y: ty, time: performance.now() };
+        this.touchPositions[t.identifier] = { x: tx, y: ty };
+      }
+      // Double-tap detection
+      if (e.changedTouches.length === 1) {
+        const now = performance.now();
+        const t = e.changedTouches[0];
+        const tx = (t.clientX - rect.left) * sx;
+        const ty = (t.clientY - rect.top) * sy;
+        if (now - this.lastTapTime < 300 && Math.abs(tx - this.lastTapX) < 40 && Math.abs(ty - this.lastTapY) < 40) {
+          this.doubleTap = true;
+        }
+        this.lastTapTime = now;
+        this.lastTapX = tx;
+        this.lastTapY = ty;
+      }
+    }, { passive: false });
+    canvas.addEventListener('touchmove', e => {
+      e.preventDefault();
+      const rect = canvas.getBoundingClientRect();
+      const sx = W / rect.width, sy = H / rect.height;
+      for (const t of e.changedTouches) {
+        this.touchPositions[t.identifier] = {
+          x: (t.clientX - rect.left) * sx,
+          y: (t.clientY - rect.top) * sy,
+        };
+      }
+    }, { passive: false });
+    canvas.addEventListener('touchend', e => {
+      const rect = canvas.getBoundingClientRect();
+      const sx = W / rect.width, sy = H / rect.height;
+      for (const t of e.changedTouches) {
+        this.activeTouches.delete(t.identifier);
+        const start = this.touchStarts[t.identifier];
+        if (start) {
+          const ex = (t.clientX - rect.left) * sx;
+          const ey = (t.clientY - rect.top) * sy;
+          const dx = ex - start.x;
+          const dy = ey - start.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          const elapsed = performance.now() - start.time;
+          // Swipe detection: >30px movement, within 500ms, mostly one direction
+          if (dist > 30 && elapsed < 500) {
+            if (Math.abs(dy) > Math.abs(dx) * 1.2) {
+              this.swipes.push({ dir: dy < 0 ? 'up' : 'down' });
+            } else if (Math.abs(dx) > Math.abs(dy) * 1.2) {
+              this.swipes.push({ dir: dx > 0 ? 'right' : 'left' });
+            }
+          }
+          delete this.touchStarts[t.identifier];
+        }
+        delete this.touchPositions[t.identifier];
+      }
+    });
+    canvas.addEventListener('touchcancel', e => {
+      for (const t of e.changedTouches) {
+        this.activeTouches.delete(t.identifier);
+        delete this.touchStarts[t.identifier];
+        delete this.touchPositions[t.identifier];
+      }
+    });
+  },
+  // Check if any touch is currently held in a logical rect
+  touchHeldInRect(x, y, w, h) {
+    for (const id in this.touchPositions) {
+      const p = this.touchPositions[id];
+      if (p.x >= x && p.x <= x + w && p.y >= y && p.y <= y + h) return true;
+    }
+    return false;
+  },
+  hasSwipe(dir) {
+    for (let i = 0; i < this.swipes.length; i++) {
+      if (this.swipes[i].dir === dir) {
+        this.swipes.splice(i, 1);
+        return true;
+      }
+    }
+    return false;
+  },
+  clear() { this.justPressed = {}; this.clicks = []; this.swipes = []; this.doubleTap = false; this.touchedButtons = {}; },
+  pressed(code) { return this.justPressed[code]; },
+  held(code) { return this.keys[code]; },
+  clickInRect(x, y, w, h) {
+    for (let i = 0; i < this.clicks.length; i++) {
+      const c = this.clicks[i];
+      if (c.x >= x && c.x <= x + w && c.y >= y && c.y <= y + h) {
+        this.clicks.splice(i, 1);
+        return true;
+      }
+    }
+    return false;
+  },
+};
+
+// --- PARTICLES ---
+const particles = [];
+function spawnParticles(x, y, color, count, speed, life) {
+  for (let i = 0; i < count; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const spd = speed * (0.5 + Math.random() * 0.5);
+    particles.push({
+      x, y, vx: Math.cos(angle) * spd, vy: Math.sin(angle) * spd,
+      life: life * (0.7 + Math.random() * 0.3), maxLife: life,
+      color, size: 1 + Math.random() * 2,
+    });
+  }
+}
+function updateParticles(dt) {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx * dt; p.y += p.vy * dt;
+    p.life -= dt;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+}
+function drawParticles(ctx) {
+  for (const p of particles) {
+    const alpha = Math.max(0, p.life / p.maxLife);
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = p.color;
+    ctx.fillRect(Math.floor(p.x), Math.floor(p.y), Math.ceil(p.size), Math.ceil(p.size));
+  }
+  ctx.globalAlpha = 1;
+}
+
+// --- SPRITE DRAWING ---
+function drawFairy(ctx, x, y, hairColor, wingColor, outfitColor, frame, crouching, spinning, eyeColor, shoeColor, accessory) {
+  eyeColor = eyeColor || '#4A3728';
+  accessory = accessory || { type: 'none' };
+  const sc = 1.4;
+  const s = crouching ? 0.6 : 1;
+  const yOff = crouching ? 8 : 0;
+  const rot = spinning ? (frame * 12) % 360 : 0;
+
+  ctx.save();
+  ctx.translate(Math.floor(x), Math.floor(y + yOff));
+  if (rot) ctx.rotate(rot * Math.PI / 180);
+  ctx.scale(sc, crouching ? sc * s : sc);
+
+  // Wing animation — tuck when crouching
+  const wingFlap = Math.sin(frame * 0.3) * 2;
+  const wingScale = crouching ? 0.4 : 1;
+  const wingYOff = crouching ? 4 : 0;
+
+  // Wings (behind)
+  ctx.fillStyle = wingColor + 'AA';
+  ctx.beginPath();
+  ctx.ellipse(-8, -2 + wingFlap * wingScale + wingYOff, 7 * wingScale, 4 * wingScale, -0.3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(8, -2 + wingFlap * wingScale + wingYOff, 7 * wingScale, 4 * wingScale, 0.3, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Second wing pair (smaller, upper) — hide when crouching
+  if (!crouching) {
+    ctx.fillStyle = wingColor + '77';
+    ctx.beginPath();
+    ctx.ellipse(-6, -6 + wingFlap * 0.7, 5, 3, -0.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(6, -6 + wingFlap * 0.7, 5, 3, 0.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Body / dress
+  ctx.fillStyle = outfitColor;
+  ctx.beginPath();
+  ctx.ellipse(0, 2, 4, 6, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(0, 6, 6, 3, 0, 0, Math.PI);
+  ctx.fill();
+
+  // Head
+  ctx.fillStyle = PASTEL.skin;
+  ctx.beginPath();
+  ctx.arc(0, -6, 5, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Hair
+  ctx.fillStyle = hairColor;
+  ctx.beginPath();
+  ctx.arc(0, -8, 5.5, Math.PI, 0);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(-5, -5, 1.5, 4, 0.1, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(5, -5, 1.5, 4, -0.1, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(-3, 0, 1, 3, 0.1, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(3, 0, 1, 3, -0.1, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Eyes (use eyeColor)
+  ctx.fillStyle = eyeColor;
+  ctx.beginPath();
+  ctx.arc(-2.5, -6.5, 1.3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(2.5, -6.5, 1.3, 0, Math.PI * 2);
+  ctx.fill();
+  // Eye shine
+  ctx.fillStyle = '#FFF';
+  ctx.beginPath();
+  ctx.arc(-3, -7, 0.6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(2, -7, 0.6, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Mouth
+  ctx.strokeStyle = '#E88';
+  ctx.lineWidth = 0.8;
+  ctx.beginPath();
+  ctx.arc(0, -4, 1.5, 0.2, Math.PI - 0.2);
+  ctx.stroke();
+  ctx.lineWidth = 1;
+
+  // Accessory
+  if (accessory.type === 'tiara') {
+    ctx.fillStyle = accessory.color || '#FFD700';
+    ctx.beginPath();
+    ctx.moveTo(-4, -11); ctx.lineTo(-3, -14); ctx.lineTo(-1, -11);
+    ctx.lineTo(0, -15); ctx.lineTo(1, -11);
+    ctx.lineTo(3, -14); ctx.lineTo(4, -11);
+    ctx.closePath(); ctx.fill();
+  } else if (accessory.type === 'bow') {
+    ctx.fillStyle = accessory.color || '#FFB5E8';
+    ctx.beginPath();
+    ctx.ellipse(-3, -11, 3, 2, -0.3, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(3, -11, 3, 2, 0.3, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#FFF';
+    ctx.beginPath(); ctx.arc(0, -11, 1, 0, Math.PI * 2); ctx.fill();
+  } else if (accessory.type === 'flower') {
+    const fc = accessory.color || '#FF88AA';
+    for (let i = 0; i < 5; i++) {
+      const a = (i / 5) * Math.PI * 2 - Math.PI / 2;
+      ctx.fillStyle = fc;
+      ctx.beginPath();
+      ctx.ellipse(4 + Math.cos(a) * 2, -10 + Math.sin(a) * 2, 1.5, 1, a, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.fillStyle = '#FFD700';
+    ctx.beginPath(); ctx.arc(4, -10, 1, 0, Math.PI * 2); ctx.fill();
+  } else if (accessory.type === 'star') {
+    ctx.fillStyle = accessory.color || '#FFD700';
+    ctx.beginPath();
+    for (let i = 0; i < 5; i++) {
+      const a = (i / 5) * Math.PI * 2 - Math.PI / 2;
+      const r = i % 2 === 0 ? 2.5 : 1;
+      ctx.lineTo(-4 + Math.cos(a) * r, -11 + Math.sin(a) * r);
+    }
+    ctx.closePath(); ctx.fill();
+  } else if (accessory.type === 'necklace') {
+    ctx.strokeStyle = accessory.color || '#88DDFF';
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    ctx.arc(0, -2, 3, 0.3, Math.PI - 0.3);
+    ctx.stroke();
+    ctx.fillStyle = accessory.color || '#88DDFF';
+    ctx.beginPath(); ctx.arc(0, 1, 1, 0, Math.PI * 2); ctx.fill();
+    ctx.lineWidth = 1;
+  }
+
+  // Legs
+  ctx.fillStyle = PASTEL.skin;
+  ctx.beginPath();
+  ctx.ellipse(-2, 9, 1.2, 2.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(2, 9, 1.2, 2.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Shoes (use shoeColor, default to outfit color)
+  ctx.fillStyle = shoeColor || outfitColor;
+  ctx.beginPath();
+  ctx.ellipse(-2, 11, 1.8, 1, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(2, 11, 1.8, 1, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+
+  // Sparkle trail
+  if (frame % 4 === 0) {
+    spawnParticles(x - 10, y, wingColor, 1, 15, 0.6);
+  }
+}
+
+function drawBlackFairy(ctx, x, y, size, frame) {
+  ctx.save();
+  ctx.translate(Math.floor(x), Math.floor(y));
+
+  const sc = size / 12;
+  ctx.scale(sc, sc);
+
+  // Dark wings
+  const wingFlap = Math.sin(frame * 0.4) * 2;
+  ctx.fillStyle = PASTEL.darkWing + 'CC';
+  ctx.beginPath();
+  ctx.ellipse(-8, -2 + wingFlap, 6, 3, -0.3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(8, -2 + wingFlap, 6, 3, 0.3, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Body (rounded)
+  ctx.fillStyle = PASTEL.darkFairy;
+  ctx.beginPath();
+  ctx.ellipse(0, 1, 4, 5, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Head
+  ctx.fillStyle = '#3D3D3D';
+  ctx.beginPath();
+  ctx.arc(0, -5, 4, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Red eyes (round)
+  ctx.fillStyle = '#FF3333';
+  ctx.beginPath(); ctx.arc(-2, -5.5, 1.2, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(2, -5.5, 1.2, 0, Math.PI * 2); ctx.fill();
+
+  ctx.restore();
+}
+
+function drawBoss(ctx, x, y, frame, hp, maxHp, state) {
+  ctx.save();
+  ctx.translate(Math.floor(x), Math.floor(y));
+
+  // Large dark wings
+  const wingFlap = Math.sin(frame * 0.3) * 3;
+  ctx.fillStyle = '#1A1A1ACC';
+  ctx.beginPath();
+  ctx.ellipse(-14, -3 + wingFlap, 12, 7, -0.3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(14, -3 + wingFlap, 12, 7, 0.3, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Second wing pair
+  ctx.fillStyle = '#2D2D2D99';
+  ctx.beginPath();
+  ctx.ellipse(-10, -10 + wingFlap * 0.7, 8, 5, -0.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(10, -10 + wingFlap * 0.7, 8, 5, 0.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Body (rounded)
+  ctx.fillStyle = PASTEL.darkFairy;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 6, 9, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Skirt flare
+  ctx.beginPath();
+  ctx.ellipse(0, 7, 8, 4, 0, 0, Math.PI);
+  ctx.fill();
+
+  // Head
+  ctx.fillStyle = '#3D3D3D';
+  ctx.beginPath();
+  ctx.arc(0, -9, 7, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Crown/tiara (pointed but smoother)
+  ctx.fillStyle = '#8B0000';
+  ctx.beginPath();
+  ctx.moveTo(-5, -13);
+  ctx.lineTo(-4, -17);
+  ctx.lineTo(-3, -13);
+  ctx.lineTo(-1, -19);
+  ctx.lineTo(1, -13);
+  ctx.lineTo(3, -17);
+  ctx.lineTo(5, -13);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = '#FF4444';
+  rrect(ctx, -5, -13, 10, 2, 1);
+  ctx.fill();
+
+  // Red eyes (round, glowing)
+  ctx.fillStyle = '#FF0000';
+  ctx.beginPath(); ctx.arc(-3.5, -10, 2, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(3.5, -10, 2, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#FF6666';
+  ctx.beginPath(); ctx.arc(-4, -10.5, 0.8, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(3, -10.5, 0.8, 0, Math.PI * 2); ctx.fill();
+
+  // Mouth (sinister smile arc)
+  ctx.strokeStyle = '#8B0000';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.arc(0, -5, 2.5, 0.3, Math.PI - 0.3);
+  ctx.stroke();
+
+  // Dark aura particles
+  if (frame % 3 === 0) {
+    spawnParticles(x, y, '#4A004A', 1, 20, 0.5);
+  }
+
+  ctx.restore();
+
+  // HP bar (rounded)
+  ctx.fillStyle = '#333';
+  rrect(ctx, x - 15, y - 25, 30, 4, 2);
+  ctx.fill();
+  if (hp > 0) {
+    ctx.fillStyle = '#FF3333';
+    rrect(ctx, x - 15, y - 25, 30 * (hp / maxHp), 4, 2);
+    ctx.fill();
+  }
+}
+
+function drawDiamond(ctx, x, y, frame, color) {
+  const bob = Math.sin(frame * 0.1) * 2;
+  const sparkle = Math.sin(frame * 0.2) > 0.5;
+  ctx.save();
+  ctx.translate(Math.floor(x), Math.floor(y + bob));
+
+  // Diamond shape
+  ctx.fillStyle = color || '#88DDFF';
+  ctx.beginPath();
+  ctx.moveTo(0, -5);
+  ctx.lineTo(4, 0);
+  ctx.lineTo(0, 6);
+  ctx.lineTo(-4, 0);
+  ctx.closePath();
+  ctx.fill();
+
+  // Highlight
+  ctx.fillStyle = '#FFFFFFAA';
+  ctx.beginPath();
+  ctx.moveTo(0, -4);
+  ctx.lineTo(2, 0);
+  ctx.lineTo(0, 1);
+  ctx.lineTo(-1, 0);
+  ctx.closePath();
+  ctx.fill();
+
+  // Sparkle
+  if (sparkle) {
+    ctx.fillStyle = '#FFF';
+    ctx.fillRect(-1, -6, 2, 1);
+    ctx.fillRect(5, -1, 1, 2);
+    ctx.fillRect(-6, 1, 1, 2);
+  }
+
+  ctx.restore();
+
+  if (frame % 6 === 0) {
+    spawnParticles(x, y, color || '#88DDFF', 1, 10, 0.8);
+  }
+}
+
+function drawSpell(ctx, x, y, frame) {
+  ctx.save();
+  ctx.translate(Math.floor(x), Math.floor(y));
+  const r = 3 + Math.sin(frame * 0.5);
+
+  // Glow
+  ctx.fillStyle = '#FFD70044';
+  ctx.beginPath();
+  ctx.arc(0, 0, r + 3, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Core
+  ctx.fillStyle = '#FFD700';
+  ctx.beginPath();
+  ctx.arc(0, 0, r, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Star shape
+  ctx.fillStyle = '#FFF8DC';
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2 + frame * 0.15;
+    ctx.fillRect(Math.cos(a) * (r + 1), Math.sin(a) * (r + 1), 2, 2);
+  }
+
+  ctx.restore();
+}
+
+function drawObstacle(ctx, x, y, type, w, h, frame) {
+  ctx.save();
+  ctx.translate(Math.floor(x), Math.floor(y));
+
+  if (type === 'crystal') {
+    // Rounded pastel crystal
+    ctx.fillStyle = '#C8A0E8';
+    ctx.beginPath();
+    ctx.moveTo(0, -h/2);
+    ctx.quadraticCurveTo(w/2 + 2, -h/4, w/2, 0);
+    ctx.quadraticCurveTo(w/3, h/2 + 2, 0, h/2);
+    ctx.quadraticCurveTo(-w/3, h/2 + 2, -w/2, 0);
+    ctx.quadraticCurveTo(-w/2 - 2, -h/4, 0, -h/2);
+    ctx.fill();
+    // Inner highlight
+    ctx.fillStyle = '#E0C8F8';
+    ctx.beginPath();
+    ctx.ellipse(-w/8, -h/6, w/4, h/4, -0.2, 0, Math.PI * 2);
+    ctx.fill();
+    // Sparkle
+    ctx.fillStyle = '#FFFFFF88';
+    ctx.beginPath();
+    ctx.arc(-w/6, -h/4, 1.5, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (type === 'mushroom') {
+    // Cute mushroom with rounded cap
+    ctx.fillStyle = '#FFB5E8';
+    ctx.beginPath();
+    ctx.arc(0, -h/6, w/2, Math.PI, 0);
+    ctx.quadraticCurveTo(w/2, h/8, w/4, h/8);
+    ctx.lineTo(-w/4, h/8);
+    ctx.quadraticCurveTo(-w/2, h/8, -w/2, -h/6);
+    ctx.fill();
+    // Spots
+    ctx.fillStyle = '#FFFFFF88';
+    ctx.beginPath(); ctx.arc(-w/6, -h/5, 2, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(w/5, -h/6, 1.5, 0, Math.PI * 2); ctx.fill();
+    // Stem (rounded)
+    ctx.fillStyle = '#F0E0D0';
+    ctx.beginPath();
+    ctx.ellipse(0, h/4, w/5, h/3, 0, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (type === 'rock') {
+    // Blobby round rock
+    ctx.fillStyle = '#D0B8D8';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, w/2, h/2, 0.1, 0, Math.PI * 2);
+    ctx.fill();
+    // Highlight blob
+    ctx.fillStyle = '#E0D0E8';
+    ctx.beginPath();
+    ctx.ellipse(-w/6, -h/5, w/3, h/3, -0.2, 0, Math.PI * 2);
+    ctx.fill();
+    // Shine
+    ctx.fillStyle = '#FFFFFF66';
+    ctx.beginPath();
+    ctx.arc(-w/5, -h/4, 2, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (type === 'water') {
+    // Water puddle with log
+    ctx.fillStyle = '#68B8E8';
+    ctx.beginPath();
+    ctx.ellipse(0, 2, w/2 + 4, h/3, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Water shine
+    ctx.fillStyle = '#90D0F8';
+    ctx.beginPath();
+    ctx.ellipse(-3, 0, w/3, h/5, -0.2, 0, Math.PI * 2);
+    ctx.fill();
+    // Ripple lines
+    ctx.strokeStyle = '#FFFFFF44';
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    ctx.ellipse(2, 3, w/4, h/6, 0.1, 0, Math.PI * 2);
+    ctx.stroke();
+    // Log floating on water
+    ctx.fillStyle = '#8B6B4A';
+    ctx.beginPath();
+    ctx.ellipse(0, -2, w/2 - 2, h/5, 0.15, 0, Math.PI * 2);
+    ctx.fill();
+    // Log bark texture
+    ctx.fillStyle = '#7A5C3A';
+    ctx.fillRect(-w/4, -4, 2, 3);
+    ctx.fillRect(w/6, -3, 2, 2);
+    // Log highlight
+    ctx.fillStyle = '#A0825A';
+    ctx.beginPath();
+    ctx.ellipse(-2, -4, w/3, h/8, 0.1, 0, Math.PI);
+    ctx.fill();
+    ctx.lineWidth = 1;
+  } else {
+    // Rounded cloud-block
+    ctx.fillStyle = '#D8C0E8';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, w/2, h/2, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Inner highlight
+    ctx.fillStyle = '#E8D8F0';
+    ctx.beginPath();
+    ctx.ellipse(-1, -2, w/3, h/3, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  ctx.restore();
+}
+
+function drawRing(ctx, x, y, frame, collected) {
+  ctx.save();
+  ctx.translate(Math.floor(x), Math.floor(y));
+
+  const pulse = Math.sin(frame * 0.08) * 1.5;
+  const shimmer = Math.sin(frame * 0.15);
+
+  if (!collected) {
+    // Outer glow
+    ctx.strokeStyle = '#FFD70033';
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 16 + pulse, 20 + pulse, 0, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Ring body
+    ctx.strokeStyle = shimmer > 0 ? '#FFD700' : '#FFC830';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 14 + pulse, 18 + pulse, 0, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Inner highlight
+    ctx.strokeStyle = '#FFEC80';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 12 + pulse, 16 + pulse, 0, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Sparkle accents
+    if (frame % 8 < 4) {
+      ctx.fillStyle = '#FFF';
+      ctx.beginPath(); ctx.arc(-14, -5, 1, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(10, 8, 1, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+
+  ctx.restore();
+}
+
+// --- LEVEL GENERATION ---
+function generateLevel(num) {
+  if (num === 10) return generateBossLevel();
+
+  const speed = 65 + num * 8;
+  const levelLength = 2800 + num * 400;
+  const obstacles = [];
+  const tunnels = [];
+  const smallFairies = [];
+  const rings = [];
+
+  // 1. Generate tunnels first (level 4+) with openLane and rings inside
+  if (num >= 4) {
+    const tunnelCount = Math.min(num - 3, 3);
+    for (let i = 0; i < tunnelCount; i++) {
+      const baseX = 800 + i * (levelLength / (tunnelCount + 1));
+      const startX = baseX + (Math.random() - 0.5) * 300;
+      const endX = startX + 180 + num * 15 + Math.random() * 60;
+      const openLane = Math.floor(Math.random() * 3);
+      tunnels.push({ startX, endX, openLane });
+
+      // Rings inside tunnels (must crouch through, in the open lane)
+      const ringCount = 1 + Math.floor(num / 4);
+      for (let j = 0; j < ringCount; j++) {
+        const rx = startX + 60 + j * ((endX - startX - 120) / Math.max(1, ringCount));
+        rings.push({ x: rx, lane: openLane, collected: false, missed: false });
+      }
+
+      // A couple black fairies inside tunnels for level 5+
+      if (num >= 5) {
+        const tunnelFairyCount = 1 + Math.floor(Math.random() * 2);
+        for (let j = 0; j < tunnelFairyCount; j++) {
+          const fx = startX + 50 + j * ((endX - startX - 100) / tunnelFairyCount);
+          smallFairies.push({ x: fx, lane: openLane, origX: fx, alive: true });
+        }
+      }
+    }
+  }
+
+  // 2. Spread black fairies throughout the level (level 5+)
+  if (num >= 5) {
+    const totalFairies = 2 + Math.floor((num - 4) * 0.7);
+    const fairyZone = levelLength - 800;
+    for (let i = 0; i < totalFairies; i++) {
+      const fx = 400 + Math.random() * fairyZone;
+      // Skip if inside a tunnel
+      if (tunnels.some(t => fx >= t.startX - 30 && fx <= t.endX + 30)) continue;
+      const flane = Math.floor(Math.random() * 3);
+      smallFairies.push({ x: fx, lane: flane, origX: fx, alive: true });
+    }
+  }
+
+  // 3. Generate rings outside tunnels too
+  const outsideRingCount = 1 + Math.floor(num * 0.6);
+  for (let i = 0; i < outsideRingCount; i++) {
+    const rx = 500 + Math.random() * (levelLength - 900);
+    // Skip if in/near a tunnel
+    if (tunnels.some(t => rx >= t.startX - 60 && rx <= t.endX + 60)) continue;
+    // Skip if too close to another ring
+    if (rings.some(r => Math.abs(rx - r.x) < 100)) continue;
+    const rlane = Math.floor(Math.random() * 3);
+    rings.push({ x: rx, lane: rlane, collected: false, missed: false });
+  }
+
+  // 4. Generate obstacles, avoiding tunnels and ring clear zones
+  const types = ['crystal', 'mushroom', 'rock', 'block', 'water'];
+  const count = 4 + num * 3;
+  const spacing = (levelLength - 600) / count;
+
+  for (let i = 0; i < count; i++) {
+    const x = 500 + spacing * i + (Math.random() - 0.5) * spacing * 0.6;
+    // Skip if in tunnel zone
+    if (tunnels.some(t => x >= t.startX - 40 && x <= t.endX + 40)) continue;
+    // Skip if too close to any ring (leave clear space)
+    if (rings.some(r => Math.abs(x - r.x) < 70)) continue;
+
+    const lane = Math.floor(Math.random() * 3);
+    const type = types[Math.floor(Math.random() * types.length)];
+    obstacles.push({ x, lane, type, w: 24 + Math.random() * 12, h: 24 + Math.random() * 12, hit: false });
+
+    if (num >= 3 && Math.random() < 0.3) {
+      const lane2 = (lane + (Math.random() < 0.5 ? 1 : 2)) % 3;
+      obstacles.push({ x: x + 5, lane: lane2, type, w: 22, h: 22, hit: false });
+    }
+  }
+
+  // 5. Colored diamonds at end (randomized lanes)
+  const dLane1 = Math.floor(Math.random() * 3);
+  let dLane2 = (dLane1 + 1 + Math.floor(Math.random() * 2)) % 3;
+  const diamonds = [
+    { x: levelLength - 100 - Math.random() * 40, lane: dLane1, collected: false, color: '#88DDFF' },
+    { x: levelLength - 40 - Math.random() * 30, lane: dLane2, collected: false, color: '#FFB5E8' },
+  ];
+
+  return { speed, levelLength, obstacles, tunnels, smallFairies, diamonds, rings, isBoss: false };
+}
+
+function generateBossLevel() {
+  return {
+    speed: 80,
+    levelLength: 1200,
+    obstacles: [],
+    tunnels: [],
+    smallFairies: [],
+    diamonds: [
+      { x: 0, lane: 0, collected: false, color: '#88DDFF' },
+      { x: 0, lane: 1, collected: false, color: '#FFB5E8' },
+      { x: 0, lane: 2, collected: false, color: '#FFFFA0' },
+    ],
+    rings: [],
+    isBoss: true,
+  };
+}
+
+// --- UI HELPERS ---
+function rrect(ctx, x, y, w, h, r) {
+  r = Math.min(r, w/2, h/2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+function drawButton(ctx, x, y, w, h, text, color, textColor, hovered) {
+  const r = Math.min(6, h/2);
+  // Shadow
+  ctx.fillStyle = '#00000022';
+  rrect(ctx, x + 1, y + 1, w, h, r);
+  ctx.fill();
+
+  ctx.fillStyle = hovered ? lightenColor(color, 20) : color;
+  rrect(ctx, x, y, w, h, r);
+  ctx.fill();
+
+  // Border
+  ctx.strokeStyle = '#00000033';
+  rrect(ctx, x, y, w, h, r);
+  ctx.stroke();
+
+  // Highlight
+  ctx.fillStyle = '#FFFFFF44';
+  rrect(ctx, x + 1, y + 1, w - 2, Math.min(4, h/3), r);
+  ctx.fill();
+
+  ctx.fillStyle = textColor || '#FFF';
+  const btnFontSize = isMobile ? Math.max(10, Math.min(13, h * 0.45)) : 10;
+  ctx.font = `bold ${Math.floor(btnFontSize)}px monospace`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, x + w/2, y + h/2 + 1);
+}
+
+function lightenColor(hex, amt) {
+  let r = parseInt(hex.slice(1,3), 16);
+  let g = parseInt(hex.slice(3,5), 16);
+  let b = parseInt(hex.slice(5,7), 16);
+  r = Math.min(255, r + amt);
+  g = Math.min(255, g + amt);
+  b = Math.min(255, b + amt);
+  return `rgb(${r},${g},${b})`;
+}
+
+function drawTitle(ctx, text, y, size, color) {
+  ctx.fillStyle = color || '#FFF';
+  ctx.font = `bold ${size}px monospace`;
+  ctx.textAlign = 'center';
+  ctx.fillText(text, W/2, y);
+}
+
+// --- BACKGROUND ---
+const LEVEL_THEMES = [
+  { bgTop: '#E8D5F5', bgBot: '#FFE5EC', ground: '#C8E6C8' }, // 1 - lavender/pink
+  { bgTop: '#D5E8F5', bgBot: '#E5F0FF', ground: '#B8D4C8' }, // 2 - sky blue
+  { bgTop: '#F5E8D5', bgBot: '#FFF0E5', ground: '#D4C8B8' }, // 3 - warm sunset
+  { bgTop: '#D5F5E8', bgBot: '#E5FFEF', ground: '#B8D8C0' }, // 4 - mint
+  { bgTop: '#F0D5F5', bgBot: '#FFE5F5', ground: '#D0C0D8' }, // 5 - orchid
+  { bgTop: '#D5E0F5', bgBot: '#E5EAFF', ground: '#B8C8D4' }, // 6 - periwinkle
+  { bgTop: '#F5E0D5', bgBot: '#FFE8DD', ground: '#D8C0B0' }, // 7 - peach
+  { bgTop: '#D0D5F0', bgBot: '#E0E5F8', ground: '#B0B8D0' }, // 8 - twilight
+  { bgTop: '#E0D0E8', bgBot: '#F0E0F0', ground: '#C0B0C8' }, // 9 - dusk purple
+  { bgTop: '#2D1050', bgBot: '#1A0A2E', ground: '#3D2050' }, // 10 - boss dark
+];
+
+function drawBackground(ctx, scrollX, frame, levelNum) {
+  const theme = LEVEL_THEMES[(levelNum || 1) - 1] || LEVEL_THEMES[0];
+  // Sky gradient
+  const grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, theme.bgTop);
+  grad.addColorStop(1, theme.bgBot);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+
+  // Parallax clouds
+  ctx.fillStyle = '#FFFFFF88';
+  for (let i = 0; i < 6; i++) {
+    const cx = ((i * 120 - scrollX * 0.1) % (W + 60)) - 30;
+    const cy = 20 + i * 15 + Math.sin(i * 2) * 10;
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, 20 + i * 3, 6 + i, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Far hills
+  ctx.fillStyle = '#D4EED4';
+  ctx.beginPath();
+  ctx.moveTo(0, 230);
+  for (let x = 0; x <= W; x += 2) {
+    const hillX = x + scrollX * 0.15;
+    const y = 220 + Math.sin(hillX * 0.008) * 15 + Math.sin(hillX * 0.015) * 8;
+    ctx.lineTo(x, y);
+  }
+  ctx.lineTo(W, H);
+  ctx.lineTo(0, H);
+  ctx.fill();
+
+  // Near ground
+  ctx.fillStyle = theme.ground;
+  ctx.fillRect(0, 235, W, H - 235);
+  ctx.fillStyle = '#00000022';
+  ctx.fillRect(0, 235, W, 2);
+
+  // Lane lines (subtle)
+  ctx.strokeStyle = '#FFFFFF44';
+  ctx.setLineDash([4, 8]);
+  for (const ly of LANE_Y) {
+    ctx.beginPath();
+    ctx.moveTo(0, ly);
+    ctx.lineTo(W, ly);
+    ctx.stroke();
+  }
+  ctx.setLineDash([]);
+
+  // Flowers (parallax)
+  const flowerColors = ['#FFB5E8', '#D5AAFF', '#85E3FF', '#FFFFD1'];
+  for (let i = 0; i < 15; i++) {
+    const fx = ((i * 47 - scrollX * 0.3 + 500) % (W + 40)) - 20;
+    const fy = 240 + (i * 7) % 20;
+    ctx.fillStyle = flowerColors[i % flowerColors.length];
+    ctx.fillRect(fx, fy, 2, 2);
+    ctx.fillRect(fx - 1, fy + 1, 1, 1);
+    ctx.fillRect(fx + 2, fy + 1, 1, 1);
+    ctx.fillStyle = '#88CC88';
+    ctx.fillRect(fx, fy + 2, 1, 3);
+  }
+
+  // Sparkles in sky
+  if (frame % 10 < 3) {
+    ctx.fillStyle = '#FFFFFFAA';
+    for (let i = 0; i < 4; i++) {
+      const sx = (frame * 7 + i * 130) % W;
+      const sy = (i * 47 + frame * 3) % 80 + 10;
+      ctx.fillRect(sx, sy, 1, 1);
+    }
+  }
+}
+
+function drawTunnel(ctx, tunnelStart, tunnelEnd, scrollX, openLane) {
+  const screenStart = tunnelStart - scrollX;
+  const screenEnd = tunnelEnd - scrollX;
+  if (screenEnd < 0 || screenStart > W) return;
+
+  const left = Math.max(0, screenStart);
+  const right = Math.min(W, screenEnd);
+  const oY = LANE_Y[openLane];
+  const gapH = 28; // narrow gap for the open lane
+
+  // Solid walls everywhere except the open lane gap
+  ctx.fillStyle = '#7B6D9A';
+  ctx.fillRect(left, 55, right - left, oY - gapH/2 - 55); // above gap
+  ctx.fillRect(left, oY + gapH/2, right - left, H - 30 - (oY + gapH/2)); // below gap
+
+  // Rock texture
+  ctx.fillStyle = '#6B5F88';
+  for (let x = left; x < right; x += 10) {
+    ctx.beginPath(); ctx.arc(x + 5, oY - gapH/2 - 3, 3, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x + 3, oY + gapH/2 + 3, 3, 0, Math.PI * 2); ctx.fill();
+  }
+
+  // Gap highlight (the passage)
+  ctx.fillStyle = '#9988BB22';
+  ctx.fillRect(left, oY - gapH/2, right - left, gapH);
+
+  // Entrance/exit pillars
+  const pillarW = 5;
+  for (const sx of [screenStart, screenEnd - pillarW]) {
+    if (sx >= -pillarW && sx <= W) {
+      ctx.fillStyle = '#5B4F78';
+      rrect(ctx, sx, 55, pillarW, oY - gapH/2 - 55, 2); ctx.fill();
+      rrect(ctx, sx, oY + gapH/2, pillarW, H - 30 - (oY + gapH/2), 2); ctx.fill();
+    }
+  }
+}
+
+// --- GAME STATE ---
+const Game = {
+  state: 'HOME',
+  canvas: null,
+  ctx: null,
+  display: null,
+  displayCtx: null,
+  frame: 0,
+  dt: 0,
+  lastTime: 0,
+
+  // Gameplay state
+  currentLevel: 1,
+  scrollX: 0,
+  player: null,
+  level: null,
+  spells: [],
+  spellCount: 0,
+  bossState: null,
+  freezeTimer: 0,
+  levelCompleteTimer: 0,
+  diamondsEarned: 0,
+  shakeTimer: 0,
+  shakeIntensity: 0,
+
+  // Closet state
+  closetCategory: 0, // 0=hair, 1=wings, 2=outfits
+  closetScroll: 0,
+
+  // How to play state
+  howToPlayPage: 0,
+
+  // Landscape prompt
+  showedLandscapePrompt: false,
+  landscapePromptTimer: 0,
+
+  // Mobile button layout (set in init)
+  mobileButtons: {
+    duck: { x: 10, y: H - 70, w: 60, h: 60 },
+    cast: { x: W - 70, y: H - 70, w: 60, h: 60 },
+    spin: { x: W - 70, y: H - 140, w: 55, h: 55 },
+  },
+
+  init() {
+    this.display = document.getElementById('display');
+    this.displayCtx = this.display.getContext('2d');
+
+    // Internal canvas (render at higher res for smoothness)
+    this.canvas = document.createElement('canvas');
+    this.canvas.width = W * RSCALE;
+    this.canvas.height = H * RSCALE;
+    this.ctx = this.canvas.getContext('2d');
+
+    this.resize();
+    window.addEventListener('resize', () => this.resize());
+
+    SaveData.load();
+    Input.init();
+
+    // Landscape prompt for mobile portrait users
+    if (isMobile && window.matchMedia('(orientation: portrait)').matches) {
+      this.landscapePromptTimer = 4;
+    }
+
+    this.lastTime = performance.now();
+    requestAnimationFrame(t => this.loop(t));
+  },
+
+  resize() {
+    const aspect = W / H;
+    let dw = window.innerWidth;
+    let dh = window.innerHeight;
+    if (dw / dh > aspect) {
+      dw = dh * aspect;
+    } else {
+      dh = dw / aspect;
+    }
+    this.display.width = W * RSCALE;
+    this.display.height = H * RSCALE;
+    this.display.style.width = Math.floor(dw) + 'px';
+    this.display.style.height = Math.floor(dh) + 'px';
+  },
+
+  loop(timestamp) {
+    this.dt = Math.min((timestamp - this.lastTime) / 1000, 0.05);
+    this.lastTime = timestamp;
+    this.frame++;
+
+    this.ctx.setTransform(RSCALE, 0, 0, RSCALE, 0, 0);
+    this.update();
+    this.render();
+
+    // Blit to display (smooth)
+    this.displayCtx.drawImage(this.canvas, 0, 0);
+
+    Input.clear();
+    requestAnimationFrame(t => this.loop(t));
+  },
+
+  update() {
+    updateParticles(this.dt);
+
+    if (this.shakeTimer > 0) this.shakeTimer -= this.dt;
+
+    switch (this.state) {
+      case 'PLAYING': this.updatePlaying(); break;
+      case 'BOSS': this.updateBoss(); break;
+      case 'HOW_TO_PLAY': this.updateHowToPlay(); break;
+    }
+  },
+
+  // === TUTORIAL ===
+  initTutorialPage(page) {
+    this.howToPlayState = {
+      p: { lane: 1, y: LANE_Y[1], targetLane: 1, crouching: false, crouchToggle: false,
+           spinning: false, spinTimer: 0, spinCooldown: 0 },
+      scrollX: 0, speed: 50,
+      obstacles: [], fairies: [], rings: [],
+      tunnel: null, spells: [], spellCount: 99, diamonds: [],
+      done: false, doneTimer: 0,
+    };
+    const st = this.howToPlayState;
+    switch(page) {
+      case 1:
+        st.obstacles = [
+          { x: 250, lane: 1, type: 'crystal', w: 26, h: 26, hit: false },
+          { x: 380, lane: 0, type: 'mushroom', w: 24, h: 24, hit: false },
+          { x: 510, lane: 2, type: 'rock', w: 26, h: 26, hit: false },
+        ];
+        break;
+      case 2:
+        st.tunnel = { startX: 280, endX: 440, openLane: 1 };
+        st.speed = 45;
+        break;
+      case 3:
+        st.rings = [{ x: 300, lane: 1, collected: false, missed: false }];
+        st.speed = 45;
+        break;
+      case 4:
+        st.speed = 0;
+        st.obstacles = [{ x: 250, lane: 1, type: 'crystal', w: 26, h: 26, hit: false }];
+        break;
+      case 5:
+        st.speed = 0;
+        st.fairies = [{ x: 280, lane: 1, origX: 280, alive: true }];
+        break;
+      case 6:
+        st.diamonds = [{ x: 300, lane: 1, collected: false, color: '#88DDFF' }];
+        st.speed = 45;
+        break;
+    }
+  },
+
+  updateHowToPlay() {
+    const page = this.howToPlayPage;
+    if (page === 0 || page === 7) return;
+
+    const st = this.howToPlayState;
+    if (!st) return;
+
+    if (st.done) {
+      st.doneTimer -= this.dt;
+      if (st.doneTimer <= 0) this.initTutorialPage(page);
+      return;
+    }
+
+    const p = st.p;
+
+    // Lane switching (tutorial)
+    if (Input.pressed('ArrowUp') || Input.pressed('KeyW') || Input.hasSwipe('up') || Input.clickInRect(W - 50, 50, 40, 30)) {
+      if (p.targetLane > 0) p.targetLane--;
+    }
+    if (Input.pressed('ArrowDown') || Input.pressed('KeyS') || Input.hasSwipe('down') || Input.clickInRect(W - 50, 90, 40, 30)) {
+      if (p.targetLane < 2) p.targetLane++;
+    }
+
+    const targetY = LANE_Y[p.targetLane];
+    p.y += (targetY - p.y) * 10 * this.dt;
+    if (Math.abs(p.y - targetY) < 0.5) { p.y = targetY; p.lane = p.targetLane; }
+
+    // Crouching (pages 2, 3)
+    if (page === 2 || page === 3) {
+      if (isMobile) {
+        p.crouching = Input.touchHeldInRect(this.mobileButtons.duck.x, this.mobileButtons.duck.y,
+          this.mobileButtons.duck.w, this.mobileButtons.duck.h);
+      } else {
+        if (Input.clickInRect(W - 50, 120, 40, 25)) p.crouchToggle = !p.crouchToggle;
+        p.crouching = Input.held('ShiftLeft') || Input.held('ShiftRight') || Input.held('KeyC') || p.crouchToggle;
+      }
+    }
+
+    // Spinning (page 5)
+    if (page === 5) {
+      if (p.spinCooldown > 0) p.spinCooldown -= this.dt;
+      const tutSpinTriggered = Input.pressed('KeyE') || Input.pressed('KeyR') ||
+        (isMobile ? Input.clickInRect(this.mobileButtons.spin.x, this.mobileButtons.spin.y, this.mobileButtons.spin.w, this.mobileButtons.spin.h)
+                  : Input.clickInRect(W - 50, 155, 40, 25));
+      if (tutSpinTriggered && p.spinCooldown <= 0) {
+        p.spinning = true; p.spinTimer = 0.8; p.spinCooldown = 3;
+      }
+      if (p.spinning) { p.spinTimer -= this.dt; if (p.spinTimer <= 0) p.spinning = false; }
+    }
+
+    // Scrolling
+    st.scrollX += st.speed * this.dt;
+
+    // Casting spells (page 4 only)
+    if (page === 4) {
+      const tutCastTriggered = Input.pressed('Space') ||
+        (isMobile ? Input.clickInRect(this.mobileButtons.cast.x, this.mobileButtons.cast.y, this.mobileButtons.cast.w, this.mobileButtons.cast.h)
+                  : Input.clickInRect(W - 50, 190, 40, 25)) ||
+        (isMobile && Input.hasSwipe('right'));
+      if (tutCastTriggered && st.spellCount > 0) {
+        st.spellCount--;
+        st.spells.push({ x: st.scrollX + PLAYER_X + 15, y: p.y, lane: p.lane, speed: 200, alive: true });
+        spawnParticles(PLAYER_X + 15, p.y, '#FFD700', 5, 40, 0.3);
+      }
+    }
+
+    // Update spells
+    const playerWorldX = st.scrollX + PLAYER_X;
+    for (const spell of st.spells) {
+      if (!spell.alive) continue;
+      spell.x += spell.speed * this.dt;
+      if (spell.x - st.scrollX > W + 20) spell.alive = false;
+
+      for (const obs of st.obstacles) {
+        if (obs.hit) continue;
+        if (Math.abs(spell.x - obs.x) < obs.w/2 + 6 && Math.abs(LANE_Y[obs.lane] - LANE_Y[spell.lane]) < 25) {
+          obs.hit = true; spell.alive = false;
+          spawnParticles(obs.x - st.scrollX, LANE_Y[obs.lane], '#D5AAFF', 10, 50, 0.5);
+          spawnParticles(obs.x - st.scrollX, LANE_Y[obs.lane], '#FFD700', 6, 30, 0.3);
+        }
+      }
+    }
+    st.spells = st.spells.filter(s => s.alive);
+
+    // Obstacle collision (reset demo on hit)
+    for (const obs of st.obstacles) {
+      if (obs.hit) continue;
+      if (Math.abs(playerWorldX - obs.x) < obs.w/2 + 8 && Math.abs(LANE_Y[obs.lane] - p.y) < 25) {
+        spawnParticles(PLAYER_X, p.y, '#FFB5E8', 8, 50, 0.4);
+        this.initTutorialPage(page);
+        return;
+      }
+    }
+
+    // Dark fairy movement + collision
+    for (const fairy of st.fairies) {
+      if (!fairy.alive) continue;
+      fairy.x -= 30 * this.dt;
+      const dx = Math.abs(playerWorldX - fairy.x);
+      if (dx < 15 && Math.abs(LANE_Y[fairy.lane] - p.y) < 20) {
+        if (p.spinning) {
+          fairy.alive = false;
+          spawnParticles(fairy.x - st.scrollX, LANE_Y[fairy.lane], '#FFD700', 8, 40, 0.5);
+        } else {
+          spawnParticles(PLAYER_X, p.y, '#4A004A', 12, 30, 0.6);
+          this.initTutorialPage(page);
+          return;
+        }
+      }
+    }
+
+    // Tunnel collision
+    if (st.tunnel) {
+      const px = st.scrollX + PLAYER_X;
+      if (px >= st.tunnel.startX - 10 && px <= st.tunnel.endX + 10) {
+        const inOpenLane = Math.abs(LANE_Y[st.tunnel.openLane] - p.y) < 22;
+        if (!inOpenLane || !p.crouching) {
+          st.scrollX -= st.speed * this.dt * 0.8;
+        }
+      }
+      if (px > st.tunnel.endX + 20 && p.crouchToggle) p.crouchToggle = false;
+    }
+
+    // Ring collision
+    for (const ring of st.rings) {
+      if (ring.collected || ring.missed) continue;
+      const dx = playerWorldX - ring.x;
+      if (Math.abs(dx) < 18 && Math.abs(LANE_Y[ring.lane] - p.y) < 22 && p.crouching) {
+        ring.collected = true;
+        spawnParticles(ring.x - st.scrollX, LANE_Y[ring.lane], '#FFD700', 12, 50, 0.6);
+      } else if (dx > 20) {
+        ring.missed = true;
+        this.initTutorialPage(page);
+        return;
+      }
+    }
+
+    // Diamond collection
+    for (const d of st.diamonds) {
+      if (d.collected) continue;
+      if (Math.abs(playerWorldX - d.x) < 15 && Math.abs(LANE_Y[d.lane] - p.y) < 20) {
+        d.collected = true;
+        spawnParticles(d.x - st.scrollX, LANE_Y[d.lane], d.color, 15, 60, 0.8);
+      }
+    }
+
+    // Check success
+    let success = false;
+    switch(page) {
+      case 1: success = playerWorldX > 560; break;
+      case 2: success = playerWorldX > st.tunnel.endX + 50; break;
+      case 3: success = st.rings.every(r => r.collected); break;
+      case 4: success = st.obstacles.every(o => o.hit); break;
+      case 5: success = st.fairies.every(f => !f.alive); break;
+      case 6: success = st.diamonds.every(d => d.collected); break;
+    }
+
+    if (success) {
+      st.done = true;
+      st.doneTimer = 2.0;
+      spawnParticles(PLAYER_X, p.y, '#FFD700', 15, 50, 0.8);
+    }
+  },
+
+  // === PLAYING STATE ===
+  startLevel(num) {
+    this.currentLevel = num;
+    this.level = generateLevel(num);
+    this.scrollX = 0;
+    this.spells = [];
+    this.spellCount = num === 10 ? 50 : 10;
+    this.freezeTimer = 0;
+    this.levelCompleteTimer = 0;
+    this.diamondsEarned = 0;
+    this.shakeTimer = 0;
+    particles.length = 0;
+
+    const equipped = SaveData.data.equipped;
+    const hair = COSMETICS.hair.find(c => c.id === equipped.hairId) || COSMETICS.hair[0];
+    const wing = COSMETICS.wings.find(c => c.id === equipped.wingId) || COSMETICS.wings[0];
+    const outfit = COSMETICS.outfits.find(c => c.id === equipped.outfitId) || COSMETICS.outfits[0];
+    const eye = COSMETICS.eyes.find(c => c.id === (equipped.eyeId || 'eye_0')) || COSMETICS.eyes[0];
+    const shoe = COSMETICS.shoes.find(c => c.id === (equipped.shoeId || 'shoe_0')) || COSMETICS.shoes[0];
+    const acc = COSMETICS.accessories.find(c => c.id === (equipped.accId || 'acc_0')) || COSMETICS.accessories[0];
+
+    this.player = {
+      lane: 1,
+      targetLane: 1,
+      y: LANE_Y[1],
+      hairColor: hair.color,
+      wingColor: wing.color,
+      outfitColor: outfit.color,
+      eyeColor: eye.color,
+      shoeColor: shoe.color,
+      accessory: { type: acc.type, color: acc.color },
+      crouching: false,
+      crouchToggle: false,
+      spinning: false,
+      spinTimer: 0,
+      spinCooldown: 0,
+      knockback: 0,
+      frozen: false,
+    };
+
+    if (this.level.isBoss) {
+      this.bossState = {
+        lane: 1,
+        y: LANE_Y[1],
+        hp: 10,
+        maxHp: 10,
+        stateTimer: 2.0,
+        dodgeCooldown: 0,
+        defeated: false,
+      };
+      this.state = 'BOSS';
+    } else {
+      this.state = 'PLAYING';
+    }
+  },
+
+  updatePlaying() {
+    if (this.levelCompleteTimer > 0) {
+      this.levelCompleteTimer -= this.dt;
+      if (this.levelCompleteTimer <= 0) {
+        this.state = 'LEVEL_COMPLETE';
+      }
+      return;
+    }
+
+    // Freeze check
+    if (this.freezeTimer > 0) {
+      this.freezeTimer -= this.dt;
+      if (this.freezeTimer <= 0) {
+        this.player.frozen = false;
+        this.freezeTimer = 0;
+      }
+      return; // World paused
+    }
+
+    const p = this.player;
+    const level = this.level;
+
+    // Scroll
+    this.scrollX += level.speed * this.dt;
+
+    // Player knockback recovery
+    if (p.knockback > 0) {
+      p.knockback -= this.dt * 2;
+      if (p.knockback < 0) p.knockback = 0;
+    }
+
+    // Lane switching (keyboard + swipe + on-screen buttons)
+    if (Input.pressed('ArrowUp') || Input.pressed('KeyW') || Input.hasSwipe('up')) {
+      if (p.targetLane > 0) p.targetLane--;
+    }
+    if (Input.pressed('ArrowDown') || Input.pressed('KeyS') || Input.hasSwipe('down')) {
+      if (p.targetLane < 2) p.targetLane++;
+    }
+
+    // On-screen lane buttons (non-mobile fallback)
+    if (!isMobile) {
+      if (Input.clickInRect(W - 50, 50, 40, 30)) {
+        if (p.targetLane > 0) p.targetLane--;
+      }
+      if (Input.clickInRect(W - 50, 90, 40, 30)) {
+        if (p.targetLane < 2) p.targetLane++;
+      }
+    }
+
+    // Smooth lane transition
+    const targetY = LANE_Y[p.targetLane];
+    p.y += (targetY - p.y) * 10 * this.dt;
+    if (Math.abs(p.y - targetY) < 0.5) {
+      p.y = targetY;
+      p.lane = p.targetLane;
+    }
+
+    // Crouching (keyboard shift/C held, mobile: hold DUCK button or toggle)
+    if (isMobile) {
+      p.crouching = Input.touchHeldInRect(this.mobileButtons.duck.x, this.mobileButtons.duck.y,
+        this.mobileButtons.duck.w, this.mobileButtons.duck.h);
+    } else {
+      if (Input.clickInRect(W - 50, 120, 40, 25)) {
+        p.crouchToggle = !p.crouchToggle;
+      }
+      p.crouching = Input.held('ShiftLeft') || Input.held('ShiftRight') ||
+                    Input.held('KeyC') || p.crouchToggle;
+    }
+    // Auto-uncrouch when out of tunnel
+    let inTunnelNow = false;
+
+    // Spinning
+    if (p.spinCooldown > 0) p.spinCooldown -= this.dt;
+    const spinTriggered = Input.pressed('KeyE') || Input.pressed('KeyR') ||
+      (isMobile ? Input.clickInRect(this.mobileButtons.spin.x, this.mobileButtons.spin.y, this.mobileButtons.spin.w, this.mobileButtons.spin.h)
+                : Input.clickInRect(W - 50, 155, 40, 25));
+    if (spinTriggered && p.spinCooldown <= 0) {
+      p.spinning = true;
+      p.spinTimer = 0.8;
+      p.spinCooldown = 3;
+      if (isMobile && navigator.vibrate) navigator.vibrate(30);
+    }
+    if (p.spinning) {
+      p.spinTimer -= this.dt;
+      if (p.spinTimer <= 0) p.spinning = false;
+    }
+
+    // Casting spells
+    const castTriggered = Input.pressed('Space') ||
+      (isMobile ? Input.clickInRect(this.mobileButtons.cast.x, this.mobileButtons.cast.y, this.mobileButtons.cast.w, this.mobileButtons.cast.h)
+                : Input.clickInRect(W - 50, 190, 40, 25)) ||
+      (isMobile && Input.hasSwipe('right'));
+    if (castTriggered && this.spellCount > 0) {
+      this.spellCount--;
+      this.spells.push({
+        x: this.scrollX + PLAYER_X + 15,
+        y: p.y,
+        lane: p.lane,
+        speed: 200,
+        alive: true,
+      });
+      spawnParticles(PLAYER_X + 15, p.y, '#FFD700', 5, 40, 0.3);
+    }
+
+    // Update spells + spell-obstacle collision
+    const playerWorldX = this.scrollX + PLAYER_X;
+    for (const spell of this.spells) {
+      if (!spell.alive) continue;
+      spell.x += spell.speed * this.dt;
+      if (spell.x - this.scrollX > W + 20) spell.alive = false;
+
+      // Spells destroy obstacles
+      for (const obs of level.obstacles) {
+        if (obs.hit) continue;
+        const dx = Math.abs(spell.x - obs.x);
+        const sameLane = Math.abs(LANE_Y[obs.lane] - LANE_Y[spell.lane]) < 25;
+        if (dx < obs.w/2 + 6 && sameLane) {
+          obs.hit = true;
+          spell.alive = false;
+          spawnParticles(obs.x - this.scrollX, LANE_Y[obs.lane], '#D5AAFF', 10, 50, 0.5);
+          spawnParticles(obs.x - this.scrollX, LANE_Y[obs.lane], '#FFD700', 6, 30, 0.3);
+        }
+      }
+
+    }
+    this.spells = this.spells.filter(s => s.alive);
+
+    // Check tunnel state - must be in open lane AND crouching
+    for (const t of level.tunnels) {
+      const px = this.scrollX + PLAYER_X;
+      if (px >= t.startX - 10 && px <= t.endX + 10) {
+        inTunnelNow = true;
+        const inOpenLane = Math.abs(LANE_Y[t.openLane] - p.y) < 22;
+        if (!inOpenLane || !p.crouching) {
+          // Bounce off - wrong lane or not crouching
+          this.scrollX -= level.speed * this.dt * 0.8;
+          if (this.frame % 15 === 0) {
+            this.shakeTimer = 0.1;
+            this.shakeIntensity = 2;
+            spawnParticles(PLAYER_X + 10, p.y, '#8B7DAA', 4, 30, 0.3);
+          }
+        }
+      }
+    }
+    // Auto-uncrouch when leaving tunnel
+    if (!inTunnelNow && p.crouchToggle) p.crouchToggle = false;
+
+    // Obstacle collisions (more forgiving on mobile)
+    const obsHitPad = isMobile ? 4 : 8;
+    for (const obs of level.obstacles) {
+      if (obs.hit) continue;
+      const dx = Math.abs(playerWorldX - obs.x);
+      const sameOrCloseLane = Math.abs(LANE_Y[obs.lane] - p.y) < 25;
+      if (dx < obs.w/2 + obsHitPad && sameOrCloseLane) {
+        obs.hit = true;
+        p.knockback = 1;
+        this.scrollX -= 30;
+        this.shakeTimer = 0.2;
+        this.shakeIntensity = 3;
+        spawnParticles(PLAYER_X, p.y, '#FFB5E8', 8, 50, 0.4);
+        if (isMobile && navigator.vibrate) navigator.vibrate(50);
+      }
+    }
+
+    // Move small fairies slowly toward player
+    for (const fairy of level.smallFairies) {
+      if (!fairy.alive) continue;
+      fairy.x -= 15 * this.dt;
+    }
+
+    // Small fairy collisions (slightly more forgiving on mobile)
+    const fairyHitDist = isMobile ? 12 : 15;
+    for (const fairy of level.smallFairies) {
+      if (!fairy.alive) continue;
+      const dx = Math.abs(playerWorldX - fairy.x);
+      const sameOrCloseLane = Math.abs(LANE_Y[fairy.lane] - p.y) < 20;
+      if (dx < fairyHitDist && sameOrCloseLane && !p.spinning) {
+        fairy.alive = false;
+        this.freezeTimer = isMobile ? 4 : 5; // slightly shorter on mobile
+        p.frozen = true;
+        this.shakeTimer = 0.3;
+        this.shakeIntensity = 4;
+        spawnParticles(PLAYER_X, p.y, '#4A004A', 12, 30, 0.6);
+        if (isMobile && navigator.vibrate) navigator.vibrate(100);
+      } else if (dx < fairyHitDist && sameOrCloseLane && p.spinning) {
+        fairy.alive = false;
+        spawnParticles(fairy.x - this.scrollX, LANE_Y[fairy.lane], '#FFD700', 8, 40, 0.5);
+      }
+    }
+
+    // Ring collision - must crouch through, knockback if missed (more forgiving on mobile)
+    const ringHitDist = isMobile ? 22 : 18;
+    const ringLaneDist = isMobile ? 26 : 22;
+    for (const ring of level.rings) {
+      if (ring.collected || ring.missed) continue;
+      const dx = playerWorldX - ring.x;
+      const sameOrCloseLane = Math.abs(LANE_Y[ring.lane] - p.y) < ringLaneDist;
+      if (Math.abs(dx) < ringHitDist && sameOrCloseLane && p.crouching) {
+        ring.collected = true;
+        spawnParticles(ring.x - this.scrollX, LANE_Y[ring.lane], '#FFD700', 12, 50, 0.6);
+        spawnParticles(ring.x - this.scrollX, LANE_Y[ring.lane], '#FFEC80', 8, 40, 0.4);
+      } else if (dx > 20) {
+        ring.missed = true;
+        p.knockback = 1;
+        this.scrollX -= 25;
+        this.shakeTimer = 0.2;
+        this.shakeIntensity = 3;
+        spawnParticles(PLAYER_X, p.y, '#FF990088', 6, 40, 0.4);
+        if (isMobile && navigator.vibrate) navigator.vibrate(50);
+      }
+    }
+
+    // Diamond collection
+    for (const d of level.diamonds) {
+      if (d.collected) continue;
+      const dx = Math.abs(playerWorldX - d.x);
+      const sameOrCloseLane = Math.abs(LANE_Y[d.lane] - p.y) < 20;
+      if (dx < 15 && sameOrCloseLane) {
+        d.collected = true;
+        this.diamondsEarned++;
+        spawnParticles(d.x - this.scrollX, LANE_Y[d.lane], d.color || '#88DDFF', 15, 60, 0.8);
+      }
+    }
+
+    // Level complete check
+    if (this.scrollX + PLAYER_X >= level.levelLength) {
+      // Collect any remaining diamonds
+      for (const d of level.diamonds) {
+        if (!d.collected) {
+          d.collected = true;
+          this.diamondsEarned++;
+        }
+      }
+      this.levelCompleteTimer = isMobile ? 2.0 : 1.5;
+      spawnParticles(PLAYER_X, p.y, '#FFD700', 20, 50, 1.0);
+      spawnParticles(PLAYER_X, p.y, '#FFB5E8', 20, 50, 1.0);
+      if (isMobile && navigator.vibrate) navigator.vibrate([50, 30, 50]);
+    }
+
+    // Pause
+    if (Input.pressed('Escape') || Input.clickInRect(5, 5, isMobile ? 40 : 30, isMobile ? 20 : 15)) {
+      this.state = 'PAUSED';
+    }
+  },
+
+  // === BOSS FIGHT ===
+  updateBoss() {
+    if (this.freezeTimer > 0) {
+      this.freezeTimer -= this.dt;
+      return;
+    }
+
+    const p = this.player;
+    const boss = this.bossState;
+
+    if (boss.defeated) {
+      this.levelCompleteTimer -= this.dt;
+      if (this.levelCompleteTimer <= 0) {
+        this.state = 'VICTORY';
+        this.diamondsEarned = 3;
+      }
+      return;
+    }
+
+    // Player controls (same as playing)
+    if (Input.pressed('ArrowUp') || Input.pressed('KeyW') || Input.hasSwipe('up')) {
+      if (p.targetLane > 0) p.targetLane--;
+    }
+    if (Input.pressed('ArrowDown') || Input.pressed('KeyS') || Input.hasSwipe('down')) {
+      if (p.targetLane < 2) p.targetLane++;
+    }
+    if (!isMobile) {
+      if (Input.clickInRect(W - 50, 50, 40, 30)) {
+        if (p.targetLane > 0) p.targetLane--;
+      }
+      if (Input.clickInRect(W - 50, 90, 40, 30)) {
+        if (p.targetLane < 2) p.targetLane++;
+      }
+    }
+
+    const targetY = LANE_Y[p.targetLane];
+    p.y += (targetY - p.y) * 10 * this.dt;
+    if (Math.abs(p.y - targetY) < 0.5) {
+      p.y = targetY;
+      p.lane = p.targetLane;
+    }
+
+    // Spinning (level 10)
+    if (p.spinCooldown > 0) p.spinCooldown -= this.dt;
+    const bossSpinTriggered = Input.pressed('KeyE') || Input.pressed('KeyR') ||
+      (isMobile ? Input.clickInRect(this.mobileButtons.spin.x, this.mobileButtons.spin.y, this.mobileButtons.spin.w, this.mobileButtons.spin.h)
+                : Input.clickInRect(W - 50, 155, 40, 25));
+    if (bossSpinTriggered && p.spinCooldown <= 0) {
+      p.spinning = true;
+      p.spinTimer = 0.8;
+      p.spinCooldown = 3;
+      if (isMobile && navigator.vibrate) navigator.vibrate(30);
+    }
+    if (p.spinning) {
+      p.spinTimer -= this.dt;
+      if (p.spinTimer <= 0) p.spinning = false;
+    }
+
+    // Cast spells
+    const bossCastTriggered = Input.pressed('Space') ||
+      (isMobile ? Input.clickInRect(this.mobileButtons.cast.x, this.mobileButtons.cast.y, this.mobileButtons.cast.w, this.mobileButtons.cast.h)
+                : Input.clickInRect(W - 50, 190, 40, 25)) ||
+      (isMobile && Input.hasSwipe('right'));
+    if (bossCastTriggered && this.spellCount > 0) {
+      this.spellCount--;
+      this.spells.push({
+        x: PLAYER_X + 15,
+        y: p.y,
+        targetLane: p.lane,
+        speed: 180,
+        alive: true,
+      });
+      spawnParticles(PLAYER_X + 15, p.y, '#FFD700', 5, 40, 0.3);
+    }
+
+    // Update spells
+    for (const spell of this.spells) {
+      if (!spell.alive) continue;
+      spell.x += spell.speed * this.dt;
+
+      // Check evil fairy hit
+      const bossX = W - 140;
+      if (spell.x >= bossX - 20 && spell.x <= bossX + 20) {
+        if (Math.abs(spell.y - boss.y) < 35) {
+          // Hit!
+          spell.alive = false;
+          boss.hp--;
+          this.shakeTimer = 0.15;
+          this.shakeIntensity = 3;
+          spawnParticles(bossX, boss.y, '#FF3333', 10, 50, 0.5);
+          spawnParticles(bossX, boss.y, '#FFD700', 8, 40, 0.4);
+
+          if (boss.hp <= 0) {
+            boss.defeated = true;
+            this.levelCompleteTimer = 3;
+            spawnParticles(bossX, boss.y, '#FFD700', 30, 80, 1.5);
+            spawnParticles(bossX, boss.y, '#FFB5E8', 20, 60, 1.2);
+            spawnParticles(bossX, boss.y, '#D5AAFF', 20, 60, 1.2);
+          }
+        } else {
+          // Boss dodged (spell missed)
+          spell.alive = false;
+          spawnParticles(bossX, spell.y, '#FFD70044', 5, 30, 0.3);
+        }
+      }
+
+      if (spell.x > W + 20) spell.alive = false;
+    }
+    this.spells = this.spells.filter(s => s.alive);
+
+    // Evil fairy AI - she moves between lanes and occasionally dodges
+    boss.stateTimer -= this.dt;
+    if (boss.dodgeCooldown > 0) boss.dodgeCooldown -= this.dt;
+
+    // Move to a random lane periodically
+    if (boss.stateTimer <= 0) {
+      boss.stateTimer = 2.0 + Math.random() * 1.5;
+      const newLane = Math.floor(Math.random() * 3);
+      if (newLane !== boss.lane) {
+        boss.lane = newLane;
+        spawnParticles(W - 140, boss.y, '#4A004A', 3, 20, 0.3);
+      }
+    }
+
+    // Occasionally dodge incoming spells (only 30% chance, with long cooldown)
+    for (const spell of this.spells) {
+      if (!spell.alive) continue;
+      if (spell.x > W * 0.6 && boss.dodgeCooldown <= 0) {
+        if (Math.abs(spell.y - boss.y) < 25 && Math.random() < 0.3) {
+          const newLane = spell.targetLane === 0 ? 1 : (spell.targetLane === 2 ? 1 : (Math.random() < 0.5 ? 0 : 2));
+          boss.lane = newLane;
+          boss.dodgeCooldown = 2.5; // Long cooldown - can't dodge again for a while
+          spawnParticles(W - 140, boss.y, '#4A004A', 5, 30, 0.3);
+        }
+      }
+    }
+
+    // Evil fairy lane transition
+    const bossTargetY = LANE_Y[boss.lane];
+    boss.y += (bossTargetY - boss.y) * 6 * this.dt;
+
+    // Pause
+    if (Input.pressed('Escape') || Input.clickInRect(5, 5, isMobile ? 40 : 30, isMobile ? 20 : 15)) {
+      this.state = 'PAUSED';
+    }
+  },
+
+  // === RENDERING ===
+  render() {
+    const ctx = this.ctx;
+    ctx.save();
+
+    // Screen shake
+    if (this.shakeTimer > 0) {
+      const sx = (Math.random() - 0.5) * this.shakeIntensity;
+      const sy = (Math.random() - 0.5) * this.shakeIntensity;
+      ctx.translate(sx, sy);
+    }
+
+    switch (this.state) {
+      case 'HOME': this.renderHome(ctx); break;
+      case 'LEVEL_SELECT': this.renderLevelSelect(ctx); break;
+      case 'CLOSET': this.renderCloset(ctx); break;
+      case 'HOW_TO_PLAY': this.renderHowToPlay(ctx); break;
+      case 'PLAYING': this.renderPlaying(ctx); break;
+      case 'BOSS': this.renderBoss(ctx); break;
+      case 'PAUSED': this.renderPause(ctx); break;
+      case 'LEVEL_COMPLETE': this.renderLevelComplete(ctx); break;
+      case 'VICTORY': this.renderVictory(ctx); break;
+    }
+
+    ctx.restore();
+  },
+
+  renderHome(ctx) {
+    // Animated background
+    drawBackground(ctx, this.frame * 0.5, this.frame);
+
+    const ts = isMobile ? 1.3 : 1;
+    const btnW = isMobile ? 140 : 100, btnH = isMobile ? 32 : 22;
+
+    // Title
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = `bold ${Math.floor(28 * ts)}px monospace`;
+    ctx.textAlign = 'center';
+    ctx.fillText('FAIRYLANDIA', W/2, isMobile ? 50 : 60);
+
+    // Subtitle shimmer
+    ctx.fillStyle = PASTEL.pink;
+    ctx.font = `bold ${Math.floor(10 * ts)}px monospace`;
+    ctx.fillText('A Magical Fairy Adventure', W/2, isMobile ? 70 : 78);
+
+    // Floating fairy preview
+    const equipped = SaveData.data.equipped;
+    const hair = COSMETICS.hair.find(c => c.id === equipped.hairId) || COSMETICS.hair[0];
+    const wing = COSMETICS.wings.find(c => c.id === equipped.wingId) || COSMETICS.wings[0];
+    const outfit = COSMETICS.outfits.find(c => c.id === equipped.outfitId) || COSMETICS.outfits[0];
+    const eye = COSMETICS.eyes.find(c => c.id === (equipped.eyeId || 'eye_0')) || COSMETICS.eyes[0];
+    const shoe = COSMETICS.shoes.find(c => c.id === (equipped.shoeId || 'shoe_0')) || COSMETICS.shoes[0];
+    const acc = COSMETICS.accessories.find(c => c.id === (equipped.accId || 'acc_0')) || COSMETICS.accessories[0];
+    const fairyBob = Math.sin(this.frame * 0.05) * 5;
+    drawFairy(ctx, W/2, (isMobile ? 110 : 120) + fairyBob, hair.color, wing.color, outfit.color, this.frame, false, false, eye.color, shoe.color, { type: acc.type, color: acc.color });
+
+    // Buttons
+    const btnX = W / 2 - btnW / 2;
+    const btnGap = btnH + 8;
+    const btnStart = isMobile ? 148 : 160;
+    drawButton(ctx, btnX, btnStart, btnW, btnH, 'PLAY', '#D5AAFF', '#FFF');
+    drawButton(ctx, btnX, btnStart + btnGap, btnW, btnH, 'CLOSET', '#FFB5E8', '#FFF');
+    drawButton(ctx, btnX, btnStart + btnGap * 2, btnW, btnH, 'HOW TO PLAY', '#85E3FF', '#FFF');
+
+    // Diamond counter
+    ctx.fillStyle = '#FFD700';
+    ctx.font = `bold ${Math.floor(8 * ts)}px monospace`;
+    ctx.textAlign = 'right';
+    drawDiamond(ctx, W - 20, 15, this.frame, '#88DDFF');
+    ctx.fillStyle = '#FFF';
+    ctx.fillText(SaveData.data.diamondBalance + '', W - 28, 18);
+
+    // Button clicks
+    if (Input.clickInRect(btnX, btnStart, btnW, btnH)) {
+      this.state = 'LEVEL_SELECT';
+    }
+    if (Input.clickInRect(btnX, btnStart + btnGap, btnW, btnH)) {
+      this.state = 'CLOSET';
+      this.closetCategory = 0;
+    }
+    if (Input.clickInRect(btnX, btnStart + btnGap * 2, btnW, btnH)) {
+      this.state = 'HOW_TO_PLAY';
+      this.howToPlayPage = 0;
+      this.initTutorialPage(0);
+    }
+
+    // Landscape orientation prompt (mobile portrait only)
+    if (isMobile && this.landscapePromptTimer > 0) {
+      this.landscapePromptTimer -= this.dt;
+      const alpha = Math.min(1, this.landscapePromptTimer);
+      ctx.fillStyle = `rgba(0,0,0,${alpha * 0.7})`;
+      ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = '#FFF';
+      ctx.font = 'bold 13px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('Rotate your device', W / 2, H / 2 - 10);
+      ctx.fillText('for the best experience', W / 2, H / 2 + 10);
+      ctx.font = '9px monospace';
+      ctx.fillStyle = '#AAA';
+      ctx.fillText('(tap to dismiss)', W / 2, H / 2 + 30);
+      if (Input.clicks.length > 0) this.landscapePromptTimer = 0;
+    }
+  },
+
+  renderLevelSelect(ctx) {
+    drawBackground(ctx, this.frame * 0.3, this.frame);
+
+    const ts = isMobile ? 1.3 : 1;
+    drawTitle(ctx, 'SELECT LEVEL', 30, Math.floor(16 * ts), '#FFF');
+
+    const cols = 5;
+    const cellW = isMobile ? 60 : 50, cellH = isMobile ? 60 : 50;
+    const gap = isMobile ? 12 : 10;
+    const startX = (W - cols * (cellW + gap) + gap) / 2;
+    const startY = isMobile ? 50 : 55;
+
+    for (let i = 0; i < 10; i++) {
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      const x = startX + col * (cellW + gap);
+      const y = startY + row * (cellH + (isMobile ? 12 : 15));
+      const levelNum = i + 1;
+      const unlocked = levelNum <= SaveData.data.unlockedLevel;
+
+      ctx.fillStyle = unlocked ? '#D5AAFF' : '#888888';
+      rrect(ctx, x, y, cellW, cellH, 8);
+      ctx.fill();
+      ctx.fillStyle = unlocked ? '#E8D0FF' : '#999999';
+      rrect(ctx, x + 2, y + 2, cellW - 4, 6, 4);
+      ctx.fill();
+
+      ctx.fillStyle = '#FFF';
+      ctx.font = `bold ${Math.floor(14 * ts)}px monospace`;
+      ctx.textAlign = 'center';
+      ctx.fillText(levelNum + '', x + cellW / 2, y + cellH * 0.4);
+
+      if (!unlocked) {
+        ctx.fillStyle = '#666';
+        rrect(ctx, x + cellW / 2 - 3, y + cellH * 0.55, 6, 5, 1.5);
+        ctx.fill();
+        ctx.strokeStyle = '#666';
+        ctx.beginPath();
+        ctx.arc(x + cellW / 2, y + cellH * 0.55, 4, Math.PI, 0);
+        ctx.stroke();
+      } else {
+        if (levelNum === 10) {
+          ctx.fillStyle = '#FFD700';
+          ctx.font = `${Math.floor(7 * ts)}px monospace`;
+          ctx.fillText('EVIL FAIRY', x + cellW / 2, y + cellH * 0.75);
+        } else {
+          drawDiamond(ctx, x + cellW / 2, y + cellH * 0.7, this.frame, '#88DDFF');
+        }
+      }
+
+      if (unlocked && Input.clickInRect(x, y, cellW, cellH)) {
+        this.startLevel(levelNum);
+      }
+    }
+
+    const backW = isMobile ? 70 : 60, backH = isMobile ? 24 : 20;
+    drawButton(ctx, 10, H - backH - 8, backW, backH, 'BACK', '#FF9999', '#FFF');
+    if (Input.clickInRect(10, H - backH - 8, backW, backH) || Input.pressed('Escape')) {
+      this.state = 'HOME';
+    }
+  },
+
+  renderCloset(ctx) {
+    // Background
+    ctx.fillStyle = '#F5E6FF';
+    ctx.fillRect(0, 0, W, H);
+
+    const ts = isMobile ? 1.3 : 1;
+    drawTitle(ctx, 'CLOSET', 20, Math.floor(14 * ts), '#8B6AAA');
+
+    // Diamond balance
+    drawDiamond(ctx, W - 20, 15, this.frame, '#88DDFF');
+    ctx.fillStyle = '#8B6AAA';
+    ctx.font = `bold ${Math.floor(8 * ts)}px monospace`;
+    ctx.textAlign = 'right';
+    ctx.fillText(SaveData.data.diamondBalance + '', W - 28, 18);
+
+    // Category tabs
+    const cats = ['HAIR', 'WINGS', 'OUTFITS', 'EYES', 'SHOES', 'ACC'];
+    const catKeys = ['hair', 'wings', 'outfits', 'eyes', 'shoes', 'accessories'];
+    if (isMobile) {
+      // 2 rows of 3 tabs
+      for (let i = 0; i < 6; i++) {
+        const col = i % 3, row = Math.floor(i / 3);
+        const tx = 10 + col * 158;
+        const ty = 30 + row * 22;
+        const active = this.closetCategory === i;
+        drawButton(ctx, tx, ty, 150, 18, cats[i], active ? '#D5AAFF' : '#C0C0C0', '#FFF');
+        if (Input.clickInRect(tx, ty, 150, 18)) {
+          this.closetCategory = i;
+        }
+      }
+    } else {
+      for (let i = 0; i < 6; i++) {
+        const tx = 10 + i * 78;
+        const active = this.closetCategory === i;
+        drawButton(ctx, tx, 32, 72, 16, cats[i], active ? '#D5AAFF' : '#C0C0C0', '#FFF');
+        if (Input.clickInRect(tx, 32, 72, 16)) {
+          this.closetCategory = i;
+        }
+      }
+    }
+
+    // Items
+    const category = catKeys[this.closetCategory];
+    const items = COSMETICS[category];
+    const equipped = SaveData.data.equipped;
+    const equippedIdMap = { hair: equipped.hairId, wings: equipped.wingId, outfits: equipped.outfitId, eyes: equipped.eyeId, shoes: equipped.shoeId, accessories: equipped.accId };
+    const equippedId = equippedIdMap[category];
+
+    const perRow = isMobile ? 4 : 5;
+    const cardW = isMobile ? 90 : 75, cardH = isMobile ? 65 : 55;
+    const cardGapX = isMobile ? 105 : 85;
+    const cardGapY = isMobile ? 75 : 70;
+    const cardStartX = isMobile ? 20 : 30;
+    const cardStartY = isMobile ? 80 : 60;
+    const fontSize = isMobile ? 9 : 7;
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      const ix = cardStartX + (i % perRow) * cardGapX;
+      const iy = cardStartY + Math.floor(i / perRow) * cardGapY;
+      const owned = SaveData.owns(item.id);
+      const isEquipped = item.id === equippedId;
+
+      ctx.fillStyle = isEquipped ? '#D5AAFF' : (owned ? '#E8D0FF' : '#DDD');
+      rrect(ctx, ix, iy, cardW, cardH, 8);
+      ctx.fill();
+
+      ctx.fillStyle = item.color || '#CCBBDD';
+      ctx.beginPath();
+      ctx.arc(ix + cardW / 2, iy + cardH * 0.32, 12, 0, Math.PI * 2);
+      ctx.fill();
+      if (!item.color) {
+        ctx.strokeStyle = '#AAA';
+        ctx.setLineDash([2, 2]);
+        ctx.beginPath();
+        ctx.arc(ix + cardW / 2, iy + cardH * 0.32, 12, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+
+      ctx.fillStyle = '#666';
+      ctx.font = `${fontSize}px monospace`;
+      ctx.textAlign = 'center';
+      ctx.fillText(item.name, ix + cardW / 2, iy + cardH * 0.68);
+
+      if (isEquipped) {
+        ctx.fillStyle = '#8B6AAA';
+        ctx.font = `bold ${fontSize}px monospace`;
+        ctx.fillText('EQUIPPED', ix + cardW / 2, iy + cardH * 0.9);
+      } else if (owned) {
+        ctx.fillStyle = '#9B8ABB';
+        ctx.font = `${fontSize}px monospace`;
+        ctx.fillText('EQUIP', ix + cardW / 2, iy + cardH * 0.9);
+      } else {
+        drawDiamond(ctx, ix + cardW / 2 - 7, iy + cardH * 0.87, this.frame, '#88DDFF');
+        ctx.fillStyle = '#888';
+        ctx.font = `${fontSize}px monospace`;
+        ctx.textAlign = 'left';
+        ctx.fillText('1', ix + cardW / 2, iy + cardH * 0.9);
+      }
+
+      if (Input.clickInRect(ix, iy, cardW, cardH)) {
+        if (owned && !isEquipped) {
+          SaveData.equip(category, item.id);
+        } else if (!owned) {
+          if (SaveData.buy(item.id)) {
+            SaveData.equip(category, item.id);
+            spawnParticles(ix + cardW / 2, iy + cardH / 2, '#FFD700', 10, 40, 0.6);
+          }
+        }
+      }
+    }
+
+    // Character preview
+    const hair = COSMETICS.hair.find(c => c.id === equipped.hairId) || COSMETICS.hair[0];
+    const wing = COSMETICS.wings.find(c => c.id === equipped.wingId) || COSMETICS.wings[0];
+    const outfit = COSMETICS.outfits.find(c => c.id === equipped.outfitId) || COSMETICS.outfits[0];
+    const prevEye = COSMETICS.eyes.find(c => c.id === (equipped.eyeId || 'eye_0')) || COSMETICS.eyes[0];
+    const prevShoe = COSMETICS.shoes.find(c => c.id === (equipped.shoeId || 'shoe_0')) || COSMETICS.shoes[0];
+    const prevAcc = COSMETICS.accessories.find(c => c.id === (equipped.accId || 'acc_0')) || COSMETICS.accessories[0];
+    const bobY = Math.sin(this.frame * 0.05) * 3;
+
+    ctx.fillStyle = '#E8D0FF44';
+    ctx.beginPath();
+    ctx.arc(W/2, H - 50 + bobY, 30, 0, Math.PI * 2);
+    ctx.fill();
+    drawFairy(ctx, W/2, H - 50 + bobY, hair.color, wing.color, outfit.color, this.frame, false, false, prevEye.color, prevShoe.color, { type: prevAcc.type, color: prevAcc.color });
+
+    // Back button
+    const backW = isMobile ? 70 : 60, backH = isMobile ? 24 : 18;
+    drawButton(ctx, 10, H - backH - 5, backW, backH, 'BACK', '#FF9999', '#FFF');
+    if (Input.clickInRect(10, H - backH - 5, backW, backH) || Input.pressed('Escape')) {
+      this.state = 'HOME';
+    }
+  },
+
+  renderHowToPlay(ctx) {
+    const pages = isMobile ? [
+      { title: 'Welcome to Fairylandia!', sub: 'A magical fairy adventure', hint: 'Tap NEXT to learn!' },
+      { title: 'Switch Lanes', sub: 'Swipe UP/DOWN to dodge obstacles', hint: 'Dodge all 3 obstacles!' },
+      { title: 'Crouch Through Tunnels', sub: 'Hold DUCK button to crouch', hint: 'Crouch in the middle lane!' },
+      { title: 'Fly Through Rings', sub: 'Hold DUCK to pass through golden rings', hint: 'Hold DUCK as you reach it!' },
+      { title: 'Cast Spells', sub: 'Tap CAST to destroy obstacles', hint: 'Destroy the obstacle!' },
+      { title: 'Spin Attack', sub: 'Tap SPIN to defeat dark fairies', hint: 'Spin to defeat it!' },
+      { title: 'Collect Diamonds', sub: 'Fly into diamonds at each level end', hint: 'Grab the diamond!' },
+      { title: 'Level 10: Evil Fairy', sub: 'Cast spells to defeat the boss!', hint: 'Good luck, fairy!' },
+    ] : [
+      { title: 'Welcome to Fairylandia!', sub: 'A magical fairy adventure', hint: 'Press NEXT to learn!' },
+      { title: 'Switch Lanes', sub: 'UP/DOWN arrows to dodge obstacles', hint: 'Dodge all 3 obstacles!' },
+      { title: 'Crouch Through Tunnels', sub: 'Hold SHIFT or C to crouch', hint: 'Crouch in the middle lane!' },
+      { title: 'Fly Through Rings', sub: 'Crouch to pass through golden rings', hint: 'Crouch as you reach it!' },
+      { title: 'Cast Spells', sub: 'SPACE to destroy obstacles in your path', hint: 'Destroy the obstacle!' },
+      { title: 'Spin Attack', sub: 'Press E to spin and defeat dark fairies', hint: 'Spin to defeat it!' },
+      { title: 'Collect Diamonds', sub: 'Fly into diamonds at each level end', hint: 'Grab the diamond!' },
+      { title: 'Level 10: Evil Fairy', sub: 'Cast spells to defeat the boss!', hint: 'Good luck, fairy!' },
+    ];
+
+    const pageNum = this.howToPlayPage;
+    const page = pages[pageNum];
+    const st = this.howToPlayState;
+
+    // Background
+    drawBackground(ctx, st ? st.scrollX : this.frame * 0.3, this.frame);
+
+    // Get equipped cosmetics for fairy drawing
+    const eq = SaveData.data.equipped;
+    const hair = COSMETICS.hair.find(c => c.id === eq.hairId) || COSMETICS.hair[0];
+    const wing = COSMETICS.wings.find(c => c.id === eq.wingId) || COSMETICS.wings[0];
+    const outfit = COSMETICS.outfits.find(c => c.id === eq.outfitId) || COSMETICS.outfits[0];
+    const eye = COSMETICS.eyes.find(c => c.id === (eq.eyeId || 'eye_0')) || COSMETICS.eyes[0];
+    const shoe = COSMETICS.shoes.find(c => c.id === (eq.shoeId || 'shoe_0')) || COSMETICS.shoes[0];
+    const acc = COSMETICS.accessories.find(c => c.id === (eq.accId || 'acc_0')) || COSMETICS.accessories[0];
+    const accObj = { type: acc.type, color: acc.color };
+
+    // Interactive demo (pages 1-6)
+    if (st && pageNum >= 1 && pageNum <= 6) {
+      const p = st.p;
+
+      // Tunnel
+      if (st.tunnel) {
+        drawTunnel(ctx, st.tunnel.startX, st.tunnel.endX, st.scrollX, st.tunnel.openLane);
+        const warnX = st.tunnel.startX - 60 - st.scrollX;
+        if (warnX > -20 && warnX < W) {
+          const laneNames = ['TOP', 'MID', 'LOW'];
+          ctx.fillStyle = this.frame % 20 < 10 ? '#FF990088' : '#FF990044';
+          ctx.font = 'bold 8px monospace';
+          ctx.textAlign = 'center';
+          ctx.fillText('DUCK! ' + laneNames[st.tunnel.openLane], warnX, LANE_Y[st.tunnel.openLane] - 18);
+        }
+      }
+
+      // Obstacles
+      for (const obs of st.obstacles) {
+        if (obs.hit) continue;
+        const sx = obs.x - st.scrollX;
+        if (sx > -30 && sx < W + 30) drawObstacle(ctx, sx, LANE_Y[obs.lane], obs.type, obs.w, obs.h);
+      }
+
+      // Rings
+      for (const ring of st.rings) {
+        if (ring.collected) continue;
+        const sx = ring.x - st.scrollX;
+        if (sx > -30 && sx < W + 30) drawRing(ctx, sx, LANE_Y[ring.lane], this.frame, false);
+      }
+
+      // Dark fairies
+      for (const fairy of st.fairies) {
+        if (!fairy.alive) continue;
+        const sx = fairy.x - st.scrollX;
+        if (sx > -20 && sx < W + 20) drawBlackFairy(ctx, sx, LANE_Y[fairy.lane], 12, this.frame);
+      }
+
+      // Diamonds
+      for (const d of st.diamonds) {
+        if (d.collected) continue;
+        const sx = d.x - st.scrollX;
+        if (sx > -20 && sx < W + 20) drawDiamond(ctx, sx, LANE_Y[d.lane], this.frame, d.color);
+      }
+
+      // Spells
+      for (const spell of st.spells) {
+        if (!spell.alive) continue;
+        drawSpell(ctx, spell.x - st.scrollX, spell.y, this.frame);
+      }
+
+      // Player fairy
+      drawFairy(ctx, PLAYER_X, p.y, hair.color, wing.color, outfit.color, this.frame,
+        p.crouching, p.spinning, eye.color, shoe.color, accObj);
+
+      // On-screen controls
+      if (isMobile) {
+        const mb = this.mobileButtons;
+        if (pageNum === 2 || pageNum === 3) {
+          const duckActive = p.crouching;
+          drawButton(ctx, mb.duck.x, mb.duck.y, mb.duck.w, mb.duck.h, 'DUCK', duckActive ? '#FF88BB' : '#FFB5E8CC', '#FFF');
+        }
+        if (pageNum === 5) drawButton(ctx, mb.spin.x, mb.spin.y, mb.spin.w, mb.spin.h, 'SPIN', '#85E3FFCC', '#FFF');
+        if (pageNum === 4) drawButton(ctx, mb.cast.x, mb.cast.y, mb.cast.w, mb.cast.h, 'CAST', '#FFD700CC', '#FFF');
+      } else {
+        drawButton(ctx, W - 50, 55, 40, 25, 'UP', '#D5AAFF88', '#FFF');
+        drawButton(ctx, W - 50, 85, 40, 25, 'DOWN', '#D5AAFF88', '#FFF');
+        if (pageNum === 2 || pageNum === 3) drawButton(ctx, W - 50, 120, 40, 25, 'DUCK', '#FFB5E888', '#FFF');
+        if (pageNum === 5) drawButton(ctx, W - 50, 155, 40, 25, 'SPIN', '#85E3FF88', '#FFF');
+        if (pageNum === 4) drawButton(ctx, W - 50, 190, 40, 25, 'CAST', '#FFD70088', '#FFF');
+      }
+
+      // Success overlay
+      if (st.done) {
+        ctx.fillStyle = '#FFD70033';
+        ctx.fillRect(0, 0, W, H);
+        ctx.fillStyle = '#FFD700';
+        ctx.font = 'bold 18px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('Nice!', W/2, H/2);
+      }
+    } else if (pageNum === 0) {
+      // Welcome - floating fairy
+      const bob = Math.sin(this.frame * 0.05) * 5;
+      drawFairy(ctx, W/2, 140 + bob, hair.color, wing.color, outfit.color, this.frame, false, false,
+        eye.color, shoe.color, accObj);
+    } else if (pageNum === 7) {
+      // Boss preview
+      drawBoss(ctx, W/2 + 60, 140 + Math.sin(this.frame * 0.04) * 5, this.frame, 10, 10, 'IDLE');
+      drawFairy(ctx, W/2 - 60, 140 + Math.sin(this.frame * 0.06) * 3, hair.color, wing.color, outfit.color, this.frame, false, false,
+        eye.color, shoe.color, accObj);
+    }
+
+    drawParticles(ctx);
+
+    // Instruction card at top
+    ctx.fillStyle = '#FFFFFFCC';
+    rrect(ctx, 20, 5, W - 80, 48, 10);
+    ctx.fill();
+
+    ctx.fillStyle = '#8B6AAA';
+    ctx.font = 'bold 12px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(page.title, 220, 22);
+
+    ctx.fillStyle = '#666';
+    ctx.font = '8px monospace';
+    ctx.fillText(page.sub, 220, 35);
+
+    if (page.hint && this.frame % 60 < 45) {
+      ctx.fillStyle = '#D5AAFF';
+      ctx.font = 'bold 7px monospace';
+      ctx.fillText(page.hint, 220, 47);
+    }
+
+    // Page indicator
+    ctx.fillStyle = '#AAA';
+    ctx.font = '7px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(`${pageNum + 1} / ${pages.length}`, W/2, H - 5);
+
+    // Navigation
+    const navW = isMobile ? 70 : 50, navH = isMobile ? 24 : 16;
+    if (pageNum > 0) {
+      drawButton(ctx, W / 2 - navW * 2 - 5, H - navH - 5, navW, navH, 'PREV', '#D5AAFF', '#FFF');
+      if (Input.clickInRect(W / 2 - navW * 2 - 5, H - navH - 5, navW, navH) || Input.pressed('ArrowLeft')) {
+        this.howToPlayPage--;
+        this.initTutorialPage(this.howToPlayPage);
+      }
+    }
+    if (pageNum < pages.length - 1) {
+      drawButton(ctx, W / 2 + navW + 5, H - navH - 5, navW, navH, 'NEXT', '#D5AAFF', '#FFF');
+      if (Input.clickInRect(W / 2 + navW + 5, H - navH - 5, navW, navH) || Input.pressed('ArrowRight')) {
+        this.howToPlayPage++;
+        this.initTutorialPage(this.howToPlayPage);
+      }
+    }
+
+    drawButton(ctx, W / 2 - navW / 2, H - navH - 5, navW, navH, 'BACK', '#FF9999', '#FFF');
+    if (Input.clickInRect(W / 2 - navW / 2, H - navH - 5, navW, navH) || Input.pressed('Escape')) {
+      this.state = 'HOME';
+    }
+  },
+
+  renderPlaying(ctx) {
+    drawBackground(ctx, this.scrollX, this.frame, this.currentLevel);
+
+    const p = this.player;
+    const level = this.level;
+
+    // Tunnels
+    for (const t of level.tunnels) {
+      drawTunnel(ctx, t.startX, t.endX, this.scrollX, t.openLane);
+      // Warning sign before tunnel showing which lane
+      const warnX = t.startX - 80 - this.scrollX;
+      if (warnX > -20 && warnX < W) {
+        const laneNames = ['TOP', 'MID', 'LOW'];
+        ctx.fillStyle = this.frame % 20 < 10 ? '#FF990088' : '#FF990044';
+        ctx.font = 'bold 8px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('DUCK! ' + laneNames[t.openLane], warnX, LANE_Y[t.openLane] - 18);
+      }
+    }
+
+    // Obstacles
+    for (const obs of level.obstacles) {
+      if (obs.hit) continue;
+      const screenX = obs.x - this.scrollX;
+      if (screenX < -30 || screenX > W + 30) continue;
+      drawObstacle(ctx, screenX, LANE_Y[obs.lane], obs.type, obs.w, obs.h);
+    }
+
+    // Rings
+    for (const ring of level.rings) {
+      if (ring.collected) continue;
+      const screenX = ring.x - this.scrollX;
+      if (screenX < -30 || screenX > W + 30) continue;
+      drawRing(ctx, screenX, LANE_Y[ring.lane], this.frame, ring.collected);
+    }
+
+    // Diamonds
+    for (const d of level.diamonds) {
+      if (d.collected) continue;
+      const screenX = d.x - this.scrollX;
+      if (screenX < -20 || screenX > W + 20) continue;
+      drawDiamond(ctx, screenX, LANE_Y[d.lane], this.frame, d.color);
+    }
+
+    // Small fairies
+    for (const fairy of level.smallFairies) {
+      if (!fairy.alive) continue;
+      const screenX = fairy.x - this.scrollX;
+      if (screenX < -20 || screenX > W + 20) continue;
+      drawBlackFairy(ctx, screenX, LANE_Y[fairy.lane], 12, this.frame);
+    }
+
+    // Spells
+    for (const spell of this.spells) {
+      if (!spell.alive) continue;
+      drawSpell(ctx, spell.x - this.scrollX, spell.y, this.frame);
+    }
+
+    // Player
+    if (this.freezeTimer > 0) {
+      // Frozen effect
+      ctx.fillStyle = '#88DDFF44';
+      ctx.beginPath();
+      ctx.arc(PLAYER_X, p.y, 18, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    drawFairy(ctx, PLAYER_X - p.knockback * 10, p.y, p.hairColor, p.wingColor, p.outfitColor,
+      this.frame, p.crouching, p.spinning, p.eyeColor, p.shoeColor, p.accessory);
+
+    // Particles
+    drawParticles(ctx);
+
+    // HUD
+    this.renderHUD(ctx);
+
+    // Freeze overlay
+    if (this.freezeTimer > 0) {
+      ctx.fillStyle = '#88DDFF22';
+      ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = '#FFF';
+      ctx.font = 'bold 14px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('FROZEN!', W/2, H/2 - 30);
+      ctx.font = '10px monospace';
+      ctx.fillText(Math.ceil(this.freezeTimer) + 's', W/2, H/2 - 15);
+    }
+
+    // Level complete flash
+    if (this.levelCompleteTimer > 0) {
+      const alpha = Math.min(1, this.levelCompleteTimer);
+      ctx.fillStyle = `rgba(255, 255, 255, ${alpha * 0.5})`;
+      ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = '#FFD700';
+      ctx.font = 'bold 18px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('LEVEL COMPLETE!', W/2, H/2);
+    }
+
+    // Progress bar (rounded)
+    const progress = Math.min(1, (this.scrollX + PLAYER_X) / level.levelLength);
+    ctx.fillStyle = '#00000044';
+    rrect(ctx, 50, H - 8, W - 100, 4, 2);
+    ctx.fill();
+    if (progress > 0.01) {
+      ctx.fillStyle = '#FFD700';
+      rrect(ctx, 50, H - 8, (W - 100) * progress, 4, 2);
+      ctx.fill();
+    }
+    // Position dot
+    ctx.fillStyle = '#FFF';
+    ctx.beginPath();
+    ctx.arc(50 + (W - 100) * progress, H - 6, 3, 0, Math.PI * 2);
+    ctx.fill();
+  },
+
+  renderBoss(ctx) {
+    drawBackground(ctx, this.frame * 0.2, this.frame, 10);
+
+    const p = this.player;
+    const boss = this.bossState;
+
+    // Boss arena atmosphere
+    ctx.fillStyle = '#2D002D22';
+    ctx.fillRect(0, 0, W, H);
+
+    // Dark particles around edges
+    if (this.frame % 5 === 0) {
+      spawnParticles(Math.random() * W, Math.random() < 0.5 ? 0 : H, '#4A004A', 1, 10, 1.0);
+    }
+
+    // Spells
+    for (const spell of this.spells) {
+      if (!spell.alive) continue;
+      drawSpell(ctx, spell.x, spell.y, this.frame);
+    }
+
+    // Player
+    drawFairy(ctx, PLAYER_X, p.y, p.hairColor, p.wingColor, p.outfitColor,
+      this.frame, false, false, p.eyeColor, p.shoeColor, p.accessory);
+
+    // Boss
+    if (!boss.defeated) {
+      drawBoss(ctx, W - 140, boss.y, this.frame, boss.hp, boss.maxHp, boss.state);
+    } else {
+      // Bubble animation
+      const bubbleR = 20 + Math.sin(this.frame * 0.1) * 3;
+      ctx.fillStyle = '#FFB5E844';
+      ctx.beginPath();
+      ctx.arc(W - 140, boss.y, bubbleR + 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#FFB5E8';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(W - 140, boss.y, bubbleR, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.lineWidth = 1;
+
+      // Trapped boss (smaller, fading)
+      ctx.globalAlpha = 0.5;
+      drawBoss(ctx, W - 140, boss.y, this.frame, 0, 10, 'IDLE');
+      ctx.globalAlpha = 1;
+
+      // Victory text
+      ctx.fillStyle = '#FFD700';
+      ctx.font = 'bold 16px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('CAPTURED!', W/2, 40);
+    }
+
+    // Particles
+    drawParticles(ctx);
+
+    // HUD
+    this.renderHUD(ctx);
+
+  },
+
+  renderHUD(ctx) {
+    const ts = isMobile ? 1.3 : 1; // text scale for mobile
+
+    // Pause button (rounded)
+    const pauseW = isMobile ? 40 : 30, pauseH = isMobile ? 20 : 15;
+    ctx.fillStyle = '#FFFFFF88';
+    rrect(ctx, 5, 5, pauseW, pauseH, 5);
+    ctx.fill();
+    ctx.fillStyle = '#666';
+    ctx.font = `${Math.floor(8 * ts)}px monospace`;
+    ctx.textAlign = 'center';
+    ctx.fillText('| |', 5 + pauseW / 2, 5 + pauseH / 2 + 3);
+
+    // Level number
+    ctx.fillStyle = '#FFF';
+    ctx.font = `bold ${Math.floor(9 * ts)}px monospace`;
+    ctx.textAlign = 'left';
+    ctx.fillText('LV ' + this.currentLevel, pauseW + 12, 5 + pauseH / 2 + 3);
+
+    // Spell counter
+    ctx.fillStyle = '#FFD700';
+    ctx.font = `${Math.floor(8 * ts)}px monospace`;
+    ctx.textAlign = 'right';
+    ctx.fillText('SPELLS: ' + this.spellCount, isMobile ? W - 10 : W - 55, 5 + pauseH / 2 + 3);
+
+    if (isMobile) {
+      // Mobile: large buttons at bottom of screen
+      const mb = this.mobileButtons;
+      const p = this.player;
+
+      // DUCK button (left side, hold to crouch)
+      const duckActive = p.crouching;
+      const duckColor = duckActive ? '#FF88BB' : '#FFB5E8CC';
+      drawButton(ctx, mb.duck.x, mb.duck.y, mb.duck.w, mb.duck.h, 'DUCK', duckColor, '#FFF');
+      if (duckActive) {
+        ctx.strokeStyle = '#FFF';
+        ctx.lineWidth = 2;
+        rrect(ctx, mb.duck.x, mb.duck.y, mb.duck.w, mb.duck.h, 6);
+        ctx.stroke();
+        ctx.lineWidth = 1;
+      }
+
+      // CAST button (right side)
+      drawButton(ctx, mb.cast.x, mb.cast.y, mb.cast.w, mb.cast.h, 'CAST', '#FFD700CC', '#FFF');
+
+      // SPIN button (above cast)
+      const spinReady = p.spinCooldown <= 0;
+      const spinColor = spinReady ? '#85E3FFCC' : '#85E3FF44';
+      drawButton(ctx, mb.spin.x, mb.spin.y, mb.spin.w, mb.spin.h, 'SPIN', spinColor, '#FFF');
+
+      // Spin cooldown indicator (circular overlay)
+      if (p.spinCooldown > 0) {
+        const pct = p.spinCooldown / 3;
+        ctx.fillStyle = '#00000044';
+        ctx.beginPath();
+        ctx.moveTo(mb.spin.x + mb.spin.w / 2, mb.spin.y + mb.spin.h / 2);
+        ctx.arc(mb.spin.x + mb.spin.w / 2, mb.spin.y + mb.spin.h / 2, mb.spin.w / 2,
+          -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * pct);
+        ctx.closePath();
+        ctx.fill();
+      }
+    } else {
+      // Desktop: original small controls on right side
+      drawButton(ctx, W - 50, 50, 40, 25, 'UP', '#D5AAFF88', '#FFF');
+      drawButton(ctx, W - 50, 85, 40, 25, 'DOWN', '#D5AAFF88', '#FFF');
+      drawButton(ctx, W - 50, 120, 40, 25, 'DUCK', '#FFB5E888', '#FFF');
+      drawButton(ctx, W - 50, 155, 40, 25, 'SPIN', '#85E3FF88', '#FFF');
+      drawButton(ctx, W - 50, 190, 40, 25, 'CAST', '#FFD70088', '#FFF');
+    }
+  },
+
+  renderPause(ctx) {
+    if (this.bossState && this.currentLevel === 10) {
+      this.renderBoss(ctx);
+    } else {
+      this.renderPlaying(ctx);
+    }
+
+    ctx.fillStyle = '#00000088';
+    ctx.fillRect(0, 0, W, H);
+
+    const btnW = isMobile ? 140 : 100, btnH = isMobile ? 32 : 22;
+    const ts = isMobile ? 1.3 : 1;
+    drawTitle(ctx, 'PAUSED', H / 2 - 55, Math.floor(20 * ts), '#FFF');
+
+    const bx = W / 2 - btnW / 2;
+    const gap = btnH + 8;
+    drawButton(ctx, bx, H / 2 - 20, btnW, btnH, 'RESUME', '#D5AAFF', '#FFF');
+    drawButton(ctx, bx, H / 2 - 20 + gap, btnW, btnH, 'RESTART', '#FFB5E8', '#FFF');
+    drawButton(ctx, bx, H / 2 - 20 + gap * 2, btnW, btnH, 'HOME', '#FF9999', '#FFF');
+
+    if (Input.clickInRect(bx, H / 2 - 20, btnW, btnH) || Input.pressed('Escape')) {
+      this.state = this.currentLevel === 10 && this.bossState ? 'BOSS' : 'PLAYING';
+    }
+    if (Input.clickInRect(bx, H / 2 - 20 + gap, btnW, btnH)) {
+      this.startLevel(this.currentLevel);
+    }
+    if (Input.clickInRect(bx, H / 2 - 20 + gap * 2, btnW, btnH)) {
+      this.state = 'HOME';
+    }
+  },
+
+  renderLevelComplete(ctx) {
+    drawBackground(ctx, this.scrollX, this.frame, this.currentLevel);
+
+    // Celebration particles
+    if (this.frame % 3 === 0) {
+      const colors = ['#FFB5E8', '#D5AAFF', '#85E3FF', '#FFD700', '#B5FFB5'];
+      spawnParticles(Math.random() * W, Math.random() * H * 0.5, colors[Math.floor(Math.random() * colors.length)], 3, 30, 1.0);
+    }
+    drawParticles(ctx);
+
+    // Card (rounded)
+    ctx.fillStyle = '#FFFFFFDD';
+    rrect(ctx, W/2 - 120, 40, 240, 150, 14);
+    ctx.fill();
+
+    ctx.fillStyle = '#8B6AAA';
+    ctx.font = 'bold 16px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('LEVEL ' + this.currentLevel, W/2, 70);
+    ctx.fillText('COMPLETE!', W/2, 90);
+
+    // Diamonds earned
+    ctx.fillStyle = '#666';
+    ctx.font = '10px monospace';
+    ctx.fillText('Diamonds earned:', W/2, 115);
+
+    const dColors = this.currentLevel === 10 ? ['#88DDFF','#FFB5E8','#FFFFA0'] : ['#88DDFF','#FFB5E8'];
+    for (let i = 0; i < dColors.length; i++) {
+      drawDiamond(ctx, W/2 - 10 * (dColors.length-1)/2 + i * 15, 135, this.frame, dColors[i]);
+    }
+
+    const contW = isMobile ? 140 : 100, contH = isMobile ? 32 : 22;
+    drawButton(ctx, W / 2 - contW / 2, 160, contW, contH, 'CONTINUE', '#D5AAFF', '#FFF');
+
+    if (Input.clickInRect(W / 2 - contW / 2, 160, contW, contH) || Input.pressed('Space') || Input.pressed('Enter')) {
+      SaveData.addDiamonds(this.diamondsEarned);
+      if (this.currentLevel >= SaveData.data.unlockedLevel && this.currentLevel < 10) {
+        SaveData.unlockNext();
+      }
+      this.state = 'HOME';
+    }
+  },
+
+  renderVictory(ctx) {
+    // Epic victory screen
+    ctx.fillStyle = '#1a0a2e';
+    ctx.fillRect(0, 0, W, H);
+
+    // Celebration particles
+    if (this.frame % 2 === 0) {
+      const colors = ['#FFB5E8', '#D5AAFF', '#85E3FF', '#FFD700', '#B5FFB5', '#FFCFAB'];
+      spawnParticles(Math.random() * W, H + 10, colors[Math.floor(Math.random() * colors.length)], 2, 50, 2.0);
+    }
+    drawParticles(ctx);
+
+    // Big sparkly text
+    ctx.fillStyle = '#FFD700';
+    ctx.font = 'bold 24px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('YOU DID IT!', W/2, 50);
+
+    ctx.fillStyle = '#FFB5E8';
+    ctx.font = 'bold 14px monospace';
+    ctx.fillText('Fairylandia is saved!', W/2, 75);
+
+    // Fairy celebration
+    const equipped = SaveData.data.equipped;
+    const hair = COSMETICS.hair.find(c => c.id === equipped.hairId) || COSMETICS.hair[0];
+    const wing = COSMETICS.wings.find(c => c.id === equipped.wingId) || COSMETICS.wings[0];
+    const outfit = COSMETICS.outfits.find(c => c.id === equipped.outfitId) || COSMETICS.outfits[0];
+    const vEye = COSMETICS.eyes.find(c => c.id === (equipped.eyeId || 'eye_0')) || COSMETICS.eyes[0];
+    const vShoe = COSMETICS.shoes.find(c => c.id === (equipped.shoeId || 'shoe_0')) || COSMETICS.shoes[0];
+    const vAcc = COSMETICS.accessories.find(c => c.id === (equipped.accId || 'acc_0')) || COSMETICS.accessories[0];
+    drawFairy(ctx, W/2, 130 + Math.sin(this.frame * 0.08) * 5, hair.color, wing.color, outfit.color, this.frame, false, true, vEye.color, vShoe.color, { type: vAcc.type, color: vAcc.color });
+
+    // Bubble with defeated boss
+    const bubbleR = 15 + Math.sin(this.frame * 0.1) * 2;
+    ctx.strokeStyle = '#FFB5E8';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(W/2 + 60, 130, bubbleR, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.lineWidth = 1;
+    ctx.globalAlpha = 0.4;
+    drawBlackFairy(ctx, W/2 + 60, 130, 8, this.frame);
+    ctx.globalAlpha = 1;
+
+    // Diamonds earned
+    ctx.fillStyle = '#FFF';
+    ctx.font = '10px monospace';
+    ctx.fillText('You earned 3 diamonds!', W/2, 180);
+
+    const vColors = ['#88DDFF','#FFB5E8','#FFFFA0'];
+    for (let i = 0; i < 3; i++) {
+      drawDiamond(ctx, W/2 - 15 + i * 15, 200, this.frame, vColors[i]);
+    }
+
+    const homeW = isMobile ? 140 : 100, homeH = isMobile ? 32 : 22;
+    drawButton(ctx, W / 2 - homeW / 2, 225, homeW, homeH, 'HOME', '#D5AAFF', '#FFF');
+
+    if (Input.clickInRect(W / 2 - homeW / 2, 225, homeW, homeH) || Input.pressed('Space') || Input.pressed('Enter')) {
+      SaveData.addDiamonds(3);
+      if (SaveData.data.unlockedLevel < 10) SaveData.data.unlockedLevel = 10;
+      SaveData.save();
+      this.state = 'HOME';
+    }
+  },
+};
+
+// --- INIT ---
+window.onload = () => {
+  Game.init();
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+};
+</script>
+</body>
+</html>
