@@ -10,8 +10,9 @@
 <title>Fairylandia</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body { background: #1a0a2e; overflow: hidden; display: flex; justify-content: center; align-items: center; height: 100vh; touch-action: none; }
-canvas { cursor: default; }
+html, body { background: #1a0a2e; overflow: hidden; width: 100%; height: 100%; height: 100dvh; touch-action: none; -webkit-overflow-scrolling: none; overscroll-behavior: none; position: fixed; inset: 0; }
+body { display: flex; justify-content: center; align-items: center; }
+canvas { cursor: default; display: block; touch-action: none; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
 </style>
 </head>
 <body>
@@ -1173,6 +1174,16 @@ const Game = {
 
     this.resize();
     window.addEventListener('resize', () => this.resize());
+    // Mobile orientation changes can be delayed — re-check after a beat
+    if (isMobile) {
+      window.addEventListener('orientationchange', () => {
+        setTimeout(() => this.resize(), 100);
+        setTimeout(() => this.resize(), 300);
+      });
+      if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', () => this.resize());
+      }
+    }
 
     SaveData.load();
     Input.init();
@@ -1188,8 +1199,10 @@ const Game = {
 
   resize() {
     const aspect = W / H;
-    let dw = window.innerWidth;
-    let dh = window.innerHeight;
+    // Use visualViewport for accurate mobile sizing (excludes browser chrome)
+    const vv = window.visualViewport;
+    let dw = vv ? vv.width : window.innerWidth;
+    let dh = vv ? vv.height : window.innerHeight;
     if (dw / dh > aspect) {
       dw = dh * aspect;
     } else {
