@@ -1905,7 +1905,7 @@ const Game = {
       if (this.levelCompleteTimer <= 0) {
         if (this.currentLevel === 11) {
           this.state = 'VICTORY';
-          this.diamondsEarned = 3;
+          this.diamondsEarned = 10;
         } else {
           this.state = this.currentLevel === 10 ? 'LEVEL_COMPLETE' : 'VICTORY';
           this.diamondsEarned = 3;
@@ -3063,18 +3063,21 @@ const Game = {
     // Diamonds earned
     ctx.fillStyle = '#FFF';
     ctx.font = '10px monospace';
-    ctx.fillText('You earned 3 diamonds!', W/2, 180);
+    const dCount = this.currentLevel === 11 ? 10 : 3;
+    ctx.fillText('You earned ' + dCount + ' diamonds!', W/2, 180);
 
-    const vColors = ['#88DDFF','#FFB5E8','#FFFFA0'];
-    for (let i = 0; i < 3; i++) {
-      drawDiamond(ctx, W/2 - 15 + i * 15, 200, this.frame, vColors[i]);
+    const vColors = this.currentLevel === 11
+      ? ['#88DDFF','#FFB5E8','#FFFFA0','#B5FFB5','#D5AAFF','#FFCFAB','#FF6B6B','#85E3FF','#FFD700','#FF88BB']
+      : ['#88DDFF','#FFB5E8','#FFFFA0'];
+    for (let i = 0; i < vColors.length; i++) {
+      drawDiamond(ctx, W/2 - (vColors.length - 1) * 7 + i * 14, 200, this.frame, vColors[i]);
     }
 
     const homeW = isMobile ? 140 : 100, homeH = isMobile ? 32 : 22;
     drawButton(ctx, W / 2 - homeW / 2, 225, homeW, homeH, 'HOME', '#D5AAFF', '#FFF');
 
     if (Input.clickInRect(W / 2 - homeW / 2, 225, homeW, homeH) || Input.pressed('Space') || Input.pressed('Enter')) {
-      SaveData.addDiamonds(3);
+      SaveData.addDiamonds(this.diamondsEarned || 3);
       if (SaveData.data.unlockedLevel < 11) SaveData.data.unlockedLevel = 11;
       SaveData.save();
       this.state = 'HOME';
