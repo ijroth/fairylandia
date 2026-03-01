@@ -137,7 +137,7 @@ const SaveData = {
   },
   addDiamonds(n) { this.data.diamondBalance += n; this.save(); },
   unlockNext() {
-    if (this.data.unlockedLevel < 10) this.data.unlockedLevel++;
+    if (this.data.unlockedLevel < 11) this.data.unlockedLevel++;
     this.save();
   },
 };
@@ -605,6 +605,78 @@ function drawBoss(ctx, x, y, frame, hp, maxHp, state) {
   }
 }
 
+function drawShadowFairy(ctx, x, y, frame, hp, maxHp, scheme) {
+  ctx.save();
+  ctx.translate(Math.floor(x), Math.floor(y));
+
+  // Large dark wings
+  const wingFlap = Math.sin(frame * 0.3) * 3;
+  ctx.fillStyle = scheme.wingColor;
+  ctx.beginPath();
+  ctx.ellipse(-12, -3 + wingFlap, 10, 6, -0.3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(12, -3 + wingFlap, 10, 6, 0.3, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Second wing pair
+  ctx.fillStyle = scheme.wingColor.replace('CC', '88');
+  ctx.beginPath();
+  ctx.ellipse(-8, -9 + wingFlap * 0.7, 7, 4, -0.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(8, -9 + wingFlap * 0.7, 7, 4, 0.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Body
+  ctx.fillStyle = scheme.bodyColor;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 5, 8, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(0, 6, 7, 3, 0, 0, Math.PI);
+  ctx.fill();
+
+  // Head
+  ctx.fillStyle = scheme.headColor;
+  ctx.beginPath();
+  ctx.arc(0, -8, 6, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Glowing eyes
+  ctx.fillStyle = scheme.eyeColor;
+  ctx.beginPath(); ctx.arc(-3, -9, 1.8, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(3, -9, 1.8, 0, Math.PI * 2); ctx.fill();
+  // Eye glow
+  ctx.fillStyle = scheme.eyeColor + '66';
+  ctx.beginPath(); ctx.arc(-3, -9, 3, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(3, -9, 3, 0, Math.PI * 2); ctx.fill();
+
+  // Sinister mouth
+  ctx.strokeStyle = scheme.eyeColor;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.arc(0, -5, 2, 0.3, Math.PI - 0.3);
+  ctx.stroke();
+
+  // Aura particles
+  if (frame % 4 === 0) {
+    spawnParticles(x, y, scheme.auraColor, 1, 15, 0.5);
+  }
+
+  ctx.restore();
+
+  // HP bar
+  ctx.fillStyle = '#333';
+  rrect(ctx, x - 15, y - 22, 30, 4, 2);
+  ctx.fill();
+  if (hp > 0) {
+    ctx.fillStyle = scheme.eyeColor;
+    rrect(ctx, x - 15, y - 22, 30 * (hp / maxHp), 4, 2);
+    ctx.fill();
+  }
+}
+
 function drawDiamond(ctx, x, y, frame, color) {
   const bob = Math.sin(frame * 0.1) * 2;
   const sparkle = Math.sin(frame * 0.2) > 0.5;
@@ -822,6 +894,7 @@ function drawRing(ctx, x, y, frame, collected) {
 // --- LEVEL GENERATION ---
 function generateLevel(num) {
   if (num === 10) return generateBossLevel();
+  if (num === 11) return generateShadowBossLevel();
 
   const speed = 65 + num * 8;
   const levelLength = 2800 + num * 400;
@@ -933,6 +1006,34 @@ function generateBossLevel() {
   };
 }
 
+function generateShadowBossLevel() {
+  return {
+    speed: 80,
+    levelLength: 1200,
+    obstacles: [],
+    tunnels: [],
+    smallFairies: [],
+    diamonds: [
+      { x: 0, lane: 0, collected: false, color: '#88DDFF' },
+      { x: 0, lane: 1, collected: false, color: '#FFB5E8' },
+      { x: 0, lane: 2, collected: false, color: '#FFFFA0' },
+    ],
+    rings: [],
+    isBoss: true,
+  };
+}
+
+const SHADOW_SCHEMES = {
+  green: {
+    bodyColor: '#1A3A1A', wingColor: '#2A5A2ACC', headColor: '#2A4A2A',
+    eyeColor: '#00FF66', auraColor: '#003A00',
+  },
+  purple: {
+    bodyColor: '#2D1A3D', wingColor: '#4A2A5ACC', headColor: '#3D2A4D',
+    eyeColor: '#CC44FF', auraColor: '#330033',
+  },
+};
+
 // --- UI HELPERS ---
 function rrect(ctx, x, y, w, h, r) {
   r = Math.min(r, w/2, h/2);
@@ -1007,6 +1108,7 @@ const LEVEL_THEMES = [
   { bgTop: '#D0D5F0', bgBot: '#E0E5F8', ground: '#B0B8D0' }, // 8 - twilight
   { bgTop: '#E0D0E8', bgBot: '#F0E0F0', ground: '#C0B0C8' }, // 9 - dusk purple
   { bgTop: '#2D1050', bgBot: '#1A0A2E', ground: '#3D2050' }, // 10 - boss dark
+  { bgTop: '#0A1A0A', bgBot: '#1A0A2E', ground: '#1A2A1A' }, // 11 - shadow realm
 ];
 
 function drawBackground(ctx, scrollX, frame, levelNum) {
@@ -1151,6 +1253,12 @@ const Game = {
   // How to play state
   howToPlayPage: 0,
 
+  // Carnival state
+  carnivalRide: null, // { type: 'coaster'|'haunted'|'underwater', timer: 0, scrollX: 0 }
+  carnivalIceCream: null, // { licks: 0, rainbowTimer: 0, spinning: false }
+  carnivalBottles: null, // { bottles: [], spells: [], spellCount: 6, aiming: 1, won: false }
+  carnivalNPCs: [], // [{x, y, dir, hairColor, wingColor, outfitColor, speed}]
+
   // Landscape prompt
   showedLandscapePrompt: false,
   landscapePromptTimer: 0,
@@ -1239,6 +1347,10 @@ const Game = {
       case 'PLAYING': this.updatePlaying(); break;
       case 'BOSS': this.updateBoss(); break;
       case 'HOW_TO_PLAY': this.updateHowToPlay(); break;
+      case 'CARNIVAL': this.updateCarnival(); break;
+      case 'CARNIVAL_RIDE': this.updateCarnivalRide(); break;
+      case 'CARNIVAL_ICECREAM': this.updateCarnivalIceCream(); break;
+      case 'CARNIVAL_BOTTLES': this.updateCarnivalBottles(); break;
     }
   },
 
@@ -1461,7 +1573,7 @@ const Game = {
     this.level = generateLevel(num);
     this.scrollX = 0;
     this.spells = [];
-    this.spellCount = num === 10 ? 50 : 10;
+    this.spellCount = num === 11 ? 80 : (num === 10 ? 50 : 10);
     this.freezeTimer = 0;
     this.levelCompleteTimer = 0;
     this.diamondsEarned = 0;
@@ -1496,15 +1608,26 @@ const Game = {
     };
 
     if (this.level.isBoss) {
-      this.bossState = {
-        lane: 1,
-        y: LANE_Y[1],
-        hp: 10,
-        maxHp: 10,
-        stateTimer: 2.0,
-        dodgeCooldown: 0,
-        defeated: false,
-      };
+      if (num === 11) {
+        this.bossState = {
+          dual: true,
+          bosses: [
+            { lane: 0, y: LANE_Y[0], hp: 8, maxHp: 8, stateTimer: 2.0, dodgeCooldown: 0, defeated: false, scheme: SHADOW_SCHEMES.green },
+            { lane: 2, y: LANE_Y[2], hp: 8, maxHp: 8, stateTimer: 3.5, dodgeCooldown: 0, defeated: false, scheme: SHADOW_SCHEMES.purple },
+          ],
+          allDefeated: false,
+        };
+      } else {
+        this.bossState = {
+          lane: 1,
+          y: LANE_Y[1],
+          hp: 10,
+          maxHp: 10,
+          stateTimer: 2.0,
+          dodgeCooldown: 0,
+          defeated: false,
+        };
+      }
       this.state = 'BOSS';
     } else {
       this.state = 'PLAYING';
@@ -1774,11 +1897,18 @@ const Game = {
     const p = this.player;
     const boss = this.bossState;
 
-    if (boss.defeated) {
+    // Check victory condition
+    const isDefeated = boss.dual ? boss.allDefeated : boss.defeated;
+    if (isDefeated) {
       this.levelCompleteTimer -= this.dt;
       if (this.levelCompleteTimer <= 0) {
-        this.state = 'VICTORY';
-        this.diamondsEarned = 3;
+        if (this.currentLevel === 11) {
+          this.state = 'VICTORY';
+          this.diamondsEarned = 3;
+        } else {
+          this.state = this.currentLevel === 10 ? 'LEVEL_COMPLETE' : 'VICTORY';
+          this.diamondsEarned = 3;
+        }
       }
       return;
     }
@@ -1806,7 +1936,7 @@ const Game = {
       p.lane = p.targetLane;
     }
 
-    // Spinning (level 10)
+    // Spinning
     if (p.spinCooldown > 0) p.spinCooldown -= this.dt;
     const bossSpinTriggered = Input.pressed('KeyE') || Input.pressed('KeyR') ||
       (isMobile ? Input.clickInRect(this.mobileButtons.spin.x, this.mobileButtons.spin.y, this.mobileButtons.spin.w, this.mobileButtons.spin.h)
@@ -1840,70 +1970,141 @@ const Game = {
     }
 
     // Update spells
-    for (const spell of this.spells) {
-      if (!spell.alive) continue;
-      spell.x += spell.speed * this.dt;
+    if (boss.dual) {
+      // Level 11: dual shadow bosses
+      const bossXGreen = W - 180;
+      const bossXPurple = W - 100;
+      for (const spell of this.spells) {
+        if (!spell.alive) continue;
+        spell.x += spell.speed * this.dt;
 
-      // Check evil fairy hit
-      const bossX = W - 140;
-      if (spell.x >= bossX - 20 && spell.x <= bossX + 20) {
-        if (Math.abs(spell.y - boss.y) < 35) {
-          // Hit!
-          spell.alive = false;
-          boss.hp--;
-          this.shakeTimer = 0.15;
-          this.shakeIntensity = 3;
-          spawnParticles(bossX, boss.y, '#FF3333', 10, 50, 0.5);
-          spawnParticles(bossX, boss.y, '#FFD700', 8, 40, 0.4);
-
-          if (boss.hp <= 0) {
-            boss.defeated = true;
-            this.levelCompleteTimer = 3;
-            spawnParticles(bossX, boss.y, '#FFD700', 30, 80, 1.5);
-            spawnParticles(bossX, boss.y, '#FFB5E8', 20, 60, 1.2);
-            spawnParticles(bossX, boss.y, '#D5AAFF', 20, 60, 1.2);
+        for (const b of boss.bosses) {
+          if (b.defeated) continue;
+          const bx = b === boss.bosses[0] ? bossXGreen : bossXPurple;
+          if (spell.x >= bx - 18 && spell.x <= bx + 18) {
+            if (Math.abs(spell.y - b.y) < 30) {
+              spell.alive = false;
+              b.hp--;
+              this.shakeTimer = 0.15;
+              this.shakeIntensity = 3;
+              spawnParticles(bx, b.y, b.scheme.eyeColor, 10, 50, 0.5);
+              spawnParticles(bx, b.y, '#FFD700', 8, 40, 0.4);
+              if (b.hp <= 0) {
+                b.defeated = true;
+                spawnParticles(bx, b.y, '#FFD700', 20, 70, 1.2);
+                spawnParticles(bx, b.y, b.scheme.eyeColor, 15, 50, 1.0);
+                if (boss.bosses.every(bb => bb.defeated)) {
+                  boss.allDefeated = true;
+                  this.levelCompleteTimer = 3;
+                }
+              }
+              break;
+            } else if (spell.x >= bx - 5 && spell.x <= bx + 5) {
+              spell.alive = false;
+              spawnParticles(bx, spell.y, '#FFD70044', 5, 30, 0.3);
+            }
           }
-        } else {
-          // Boss dodged (spell missed)
-          spell.alive = false;
-          spawnParticles(bossX, spell.y, '#FFD70044', 5, 30, 0.3);
         }
+
+        if (spell.x > W + 20) spell.alive = false;
       }
+      this.spells = this.spells.filter(s => s.alive);
 
-      if (spell.x > W + 20) spell.alive = false;
-    }
-    this.spells = this.spells.filter(s => s.alive);
+      // Shadow fairy AI - each moves independently
+      for (let i = 0; i < boss.bosses.length; i++) {
+        const b = boss.bosses[i];
+        if (b.defeated) continue;
 
-    // Evil fairy AI - she moves between lanes and occasionally dodges
-    boss.stateTimer -= this.dt;
-    if (boss.dodgeCooldown > 0) boss.dodgeCooldown -= this.dt;
+        b.stateTimer -= this.dt;
+        if (b.dodgeCooldown > 0) b.dodgeCooldown -= this.dt;
 
-    // Move to a random lane periodically
-    if (boss.stateTimer <= 0) {
-      boss.stateTimer = 2.0 + Math.random() * 1.5;
-      const newLane = Math.floor(Math.random() * 3);
-      if (newLane !== boss.lane) {
-        boss.lane = newLane;
-        spawnParticles(W - 140, boss.y, '#4A004A', 3, 20, 0.3);
+        if (b.stateTimer <= 0) {
+          b.stateTimer = 1.5 + Math.random() * 1.5;
+          const newLane = Math.floor(Math.random() * 3);
+          if (newLane !== b.lane) {
+            b.lane = newLane;
+            const bx = i === 0 ? bossXGreen : bossXPurple;
+            spawnParticles(bx, b.y, b.scheme.auraColor, 3, 20, 0.3);
+          }
+        }
+
+        // Dodge incoming spells (25% chance)
+        for (const spell of this.spells) {
+          if (!spell.alive) continue;
+          const bx = i === 0 ? bossXGreen : bossXPurple;
+          if (spell.x > W * 0.5 && b.dodgeCooldown <= 0) {
+            if (Math.abs(spell.y - b.y) < 25 && Math.random() < 0.25) {
+              const newLane = spell.targetLane === 0 ? 2 : (spell.targetLane === 2 ? 0 : (Math.random() < 0.5 ? 0 : 2));
+              b.lane = newLane;
+              b.dodgeCooldown = 2.0;
+              spawnParticles(bx, b.y, b.scheme.auraColor, 5, 30, 0.3);
+            }
+          }
+        }
+
+        const bTargetY = LANE_Y[b.lane];
+        b.y += (bTargetY - b.y) * 6 * this.dt;
       }
-    }
+    } else {
+      // Level 10: single boss
+      for (const spell of this.spells) {
+        if (!spell.alive) continue;
+        spell.x += spell.speed * this.dt;
 
-    // Occasionally dodge incoming spells (only 30% chance, with long cooldown)
-    for (const spell of this.spells) {
-      if (!spell.alive) continue;
-      if (spell.x > W * 0.6 && boss.dodgeCooldown <= 0) {
-        if (Math.abs(spell.y - boss.y) < 25 && Math.random() < 0.3) {
-          const newLane = spell.targetLane === 0 ? 1 : (spell.targetLane === 2 ? 1 : (Math.random() < 0.5 ? 0 : 2));
+        const bossX = W - 140;
+        if (spell.x >= bossX - 20 && spell.x <= bossX + 20) {
+          if (Math.abs(spell.y - boss.y) < 35) {
+            spell.alive = false;
+            boss.hp--;
+            this.shakeTimer = 0.15;
+            this.shakeIntensity = 3;
+            spawnParticles(bossX, boss.y, '#FF3333', 10, 50, 0.5);
+            spawnParticles(bossX, boss.y, '#FFD700', 8, 40, 0.4);
+            if (boss.hp <= 0) {
+              boss.defeated = true;
+              this.levelCompleteTimer = 3;
+              spawnParticles(bossX, boss.y, '#FFD700', 30, 80, 1.5);
+              spawnParticles(bossX, boss.y, '#FFB5E8', 20, 60, 1.2);
+              spawnParticles(bossX, boss.y, '#D5AAFF', 20, 60, 1.2);
+            }
+          } else {
+            spell.alive = false;
+            spawnParticles(bossX, spell.y, '#FFD70044', 5, 30, 0.3);
+          }
+        }
+
+        if (spell.x > W + 20) spell.alive = false;
+      }
+      this.spells = this.spells.filter(s => s.alive);
+
+      // Evil fairy AI
+      boss.stateTimer -= this.dt;
+      if (boss.dodgeCooldown > 0) boss.dodgeCooldown -= this.dt;
+
+      if (boss.stateTimer <= 0) {
+        boss.stateTimer = 2.0 + Math.random() * 1.5;
+        const newLane = Math.floor(Math.random() * 3);
+        if (newLane !== boss.lane) {
           boss.lane = newLane;
-          boss.dodgeCooldown = 2.5; // Long cooldown - can't dodge again for a while
-          spawnParticles(W - 140, boss.y, '#4A004A', 5, 30, 0.3);
+          spawnParticles(W - 140, boss.y, '#4A004A', 3, 20, 0.3);
         }
       }
-    }
 
-    // Evil fairy lane transition
-    const bossTargetY = LANE_Y[boss.lane];
-    boss.y += (bossTargetY - boss.y) * 6 * this.dt;
+      for (const spell of this.spells) {
+        if (!spell.alive) continue;
+        if (spell.x > W * 0.6 && boss.dodgeCooldown <= 0) {
+          if (Math.abs(spell.y - boss.y) < 25 && Math.random() < 0.3) {
+            const newLane = spell.targetLane === 0 ? 1 : (spell.targetLane === 2 ? 1 : (Math.random() < 0.5 ? 0 : 2));
+            boss.lane = newLane;
+            boss.dodgeCooldown = 2.5;
+            spawnParticles(W - 140, boss.y, '#4A004A', 5, 30, 0.3);
+          }
+        }
+      }
+
+      const bossTargetY = LANE_Y[boss.lane];
+      boss.y += (bossTargetY - boss.y) * 6 * this.dt;
+    }
 
     // Pause
     if (Input.pressed('Escape') || Input.clickInRect(5, 5, isMobile ? 40 : 30, isMobile ? 20 : 15)) {
@@ -1933,6 +2134,10 @@ const Game = {
       case 'PAUSED': this.renderPause(ctx); break;
       case 'LEVEL_COMPLETE': this.renderLevelComplete(ctx); break;
       case 'VICTORY': this.renderVictory(ctx); break;
+      case 'CARNIVAL': this.renderCarnival(ctx); break;
+      case 'CARNIVAL_RIDE': this.renderCarnivalRide(ctx); break;
+      case 'CARNIVAL_ICECREAM': this.renderCarnivalIceCream(ctx); break;
+      case 'CARNIVAL_BOTTLES': this.renderCarnivalBottles(ctx); break;
     }
 
     ctx.restore();
@@ -1969,11 +2174,12 @@ const Game = {
 
     // Buttons
     const btnX = W / 2 - btnW / 2;
-    const btnGap = btnH + 8;
-    const btnStart = isMobile ? 148 : 160;
+    const btnGap = btnH + 6;
+    const btnStart = isMobile ? 140 : 148;
     drawButton(ctx, btnX, btnStart, btnW, btnH, 'PLAY', '#D5AAFF', '#FFF');
-    drawButton(ctx, btnX, btnStart + btnGap, btnW, btnH, 'CLOSET', '#FFB5E8', '#FFF');
-    drawButton(ctx, btnX, btnStart + btnGap * 2, btnW, btnH, 'HOW TO PLAY', '#85E3FF', '#FFF');
+    drawButton(ctx, btnX, btnStart + btnGap, btnW, btnH, 'CARNIVAL', '#FFB5E8', '#FFF');
+    drawButton(ctx, btnX, btnStart + btnGap * 2, btnW, btnH, 'CLOSET', '#85E3FF', '#FFF');
+    drawButton(ctx, btnX, btnStart + btnGap * 3, btnW, btnH, 'HOW TO PLAY', '#B5FFB5', '#FFF');
 
     // Diamond counter
     ctx.fillStyle = '#FFD700';
@@ -1988,10 +2194,14 @@ const Game = {
       this.state = 'LEVEL_SELECT';
     }
     if (Input.clickInRect(btnX, btnStart + btnGap, btnW, btnH)) {
+      this.initCarnival();
+      this.state = 'CARNIVAL';
+    }
+    if (Input.clickInRect(btnX, btnStart + btnGap * 2, btnW, btnH)) {
       this.state = 'CLOSET';
       this.closetCategory = 0;
     }
-    if (Input.clickInRect(btnX, btnStart + btnGap * 2, btnW, btnH)) {
+    if (Input.clickInRect(btnX, btnStart + btnGap * 3, btnW, btnH)) {
       this.state = 'HOW_TO_PLAY';
       this.howToPlayPage = 0;
       this.initTutorialPage(0);
@@ -2027,7 +2237,7 @@ const Game = {
     const startX = (W - cols * (cellW + gap) + gap) / 2;
     const startY = isMobile ? 50 : 55;
 
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 11; i++) {
       const col = i % cols;
       const row = Math.floor(i / cols);
       const x = startX + col * (cellW + gap);
@@ -2035,10 +2245,10 @@ const Game = {
       const levelNum = i + 1;
       const unlocked = levelNum <= SaveData.data.unlockedLevel;
 
-      ctx.fillStyle = unlocked ? '#D5AAFF' : '#888888';
+      ctx.fillStyle = unlocked ? (levelNum === 11 ? '#6A3A8A' : '#D5AAFF') : '#888888';
       rrect(ctx, x, y, cellW, cellH, 8);
       ctx.fill();
-      ctx.fillStyle = unlocked ? '#E8D0FF' : '#999999';
+      ctx.fillStyle = unlocked ? (levelNum === 11 ? '#8A5AAA' : '#E8D0FF') : '#999999';
       rrect(ctx, x + 2, y + 2, cellW - 4, 6, 4);
       ctx.fill();
 
@@ -2056,7 +2266,11 @@ const Game = {
         ctx.arc(x + cellW / 2, y + cellH * 0.55, 4, Math.PI, 0);
         ctx.stroke();
       } else {
-        if (levelNum === 10) {
+        if (levelNum === 11) {
+          ctx.fillStyle = '#CC44FF';
+          ctx.font = `${Math.floor(7 * ts)}px monospace`;
+          ctx.fillText('SHADOWS', x + cellW / 2, y + cellH * 0.75);
+        } else if (levelNum === 10) {
           ctx.fillStyle = '#FFD700';
           ctx.font = `${Math.floor(7 * ts)}px monospace`;
           ctx.fillText('EVIL FAIRY', x + cellW / 2, y + cellH * 0.75);
@@ -2541,18 +2755,19 @@ const Game = {
   },
 
   renderBoss(ctx) {
-    drawBackground(ctx, this.frame * 0.2, this.frame, 10);
+    drawBackground(ctx, this.frame * 0.2, this.frame, this.currentLevel);
 
     const p = this.player;
     const boss = this.bossState;
 
     // Boss arena atmosphere
-    ctx.fillStyle = '#2D002D22';
+    ctx.fillStyle = this.currentLevel === 11 ? '#001A0022' : '#2D002D22';
     ctx.fillRect(0, 0, W, H);
 
     // Dark particles around edges
     if (this.frame % 5 === 0) {
-      spawnParticles(Math.random() * W, Math.random() < 0.5 ? 0 : H, '#4A004A', 1, 10, 1.0);
+      const auraCol = this.currentLevel === 11 ? '#003300' : '#4A004A';
+      spawnParticles(Math.random() * W, Math.random() < 0.5 ? 0 : H, auraCol, 1, 10, 1.0);
     }
 
     // Spells
@@ -2563,35 +2778,66 @@ const Game = {
 
     // Player
     drawFairy(ctx, PLAYER_X, p.y, p.hairColor, p.wingColor, p.outfitColor,
-      this.frame, false, false, p.eyeColor, p.shoeColor, p.accessory);
+      this.frame, false, p.spinning, p.eyeColor, p.shoeColor, p.accessory);
 
-    // Boss
-    if (!boss.defeated) {
-      drawBoss(ctx, W - 140, boss.y, this.frame, boss.hp, boss.maxHp, boss.state);
+    if (boss.dual) {
+      // Level 11: dual shadow bosses
+      const bossXGreen = W - 180;
+      const bossXPurple = W - 100;
+      for (let i = 0; i < boss.bosses.length; i++) {
+        const b = boss.bosses[i];
+        const bx = i === 0 ? bossXGreen : bossXPurple;
+        if (!b.defeated) {
+          drawShadowFairy(ctx, bx, b.y, this.frame, b.hp, b.maxHp, b.scheme);
+        } else {
+          // Defeated bubble
+          const bubbleR = 16 + Math.sin(this.frame * 0.1 + i) * 2;
+          ctx.fillStyle = b.scheme.eyeColor + '22';
+          ctx.beginPath();
+          ctx.arc(bx, b.y, bubbleR + 3, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = b.scheme.eyeColor + '88';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(bx, b.y, bubbleR, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.lineWidth = 1;
+          ctx.globalAlpha = 0.4;
+          drawShadowFairy(ctx, bx, b.y, this.frame, 0, b.maxHp, b.scheme);
+          ctx.globalAlpha = 1;
+        }
+      }
+
+      if (boss.allDefeated) {
+        ctx.fillStyle = '#FFD700';
+        ctx.font = 'bold 16px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('SHADOWS CAPTURED!', W/2, 40);
+      }
     } else {
-      // Bubble animation
-      const bubbleR = 20 + Math.sin(this.frame * 0.1) * 3;
-      ctx.fillStyle = '#FFB5E844';
-      ctx.beginPath();
-      ctx.arc(W - 140, boss.y, bubbleR + 5, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = '#FFB5E8';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(W - 140, boss.y, bubbleR, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.lineWidth = 1;
-
-      // Trapped boss (smaller, fading)
-      ctx.globalAlpha = 0.5;
-      drawBoss(ctx, W - 140, boss.y, this.frame, 0, 10, 'IDLE');
-      ctx.globalAlpha = 1;
-
-      // Victory text
-      ctx.fillStyle = '#FFD700';
-      ctx.font = 'bold 16px monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText('CAPTURED!', W/2, 40);
+      // Level 10: single boss
+      if (!boss.defeated) {
+        drawBoss(ctx, W - 140, boss.y, this.frame, boss.hp, boss.maxHp, boss.state);
+      } else {
+        const bubbleR = 20 + Math.sin(this.frame * 0.1) * 3;
+        ctx.fillStyle = '#FFB5E844';
+        ctx.beginPath();
+        ctx.arc(W - 140, boss.y, bubbleR + 5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#FFB5E8';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(W - 140, boss.y, bubbleR, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.lineWidth = 1;
+        ctx.globalAlpha = 0.5;
+        drawBoss(ctx, W - 140, boss.y, this.frame, 0, 10, 'IDLE');
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = '#FFD700';
+        ctx.font = 'bold 16px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('CAPTURED!', W/2, 40);
+      }
     }
 
     // Particles
@@ -2674,7 +2920,7 @@ const Game = {
   },
 
   renderPause(ctx) {
-    if (this.bossState && this.currentLevel === 10) {
+    if (this.bossState && (this.currentLevel === 10 || this.currentLevel === 11)) {
       this.renderBoss(ctx);
     } else {
       this.renderPlaying(ctx);
@@ -2694,7 +2940,7 @@ const Game = {
     drawButton(ctx, bx, H / 2 - 20 + gap * 2, btnW, btnH, 'HOME', '#FF9999', '#FFF');
 
     if (Input.clickInRect(bx, H / 2 - 20, btnW, btnH) || Input.pressed('Escape')) {
-      this.state = this.currentLevel === 10 && this.bossState ? 'BOSS' : 'PLAYING';
+      this.state = (this.currentLevel === 10 || this.currentLevel === 11) && this.bossState ? 'BOSS' : 'PLAYING';
     }
     if (Input.clickInRect(bx, H / 2 - 20 + gap, btnW, btnH)) {
       this.startLevel(this.currentLevel);
@@ -2740,7 +2986,7 @@ const Game = {
 
     if (Input.clickInRect(W / 2 - contW / 2, 160, contW, contH) || Input.pressed('Space') || Input.pressed('Enter')) {
       SaveData.addDiamonds(this.diamondsEarned);
-      if (this.currentLevel >= SaveData.data.unlockedLevel && this.currentLevel < 10) {
+      if (this.currentLevel >= SaveData.data.unlockedLevel && this.currentLevel < 11) {
         SaveData.unlockNext();
       }
       this.state = 'HOME';
@@ -2767,7 +3013,11 @@ const Game = {
 
     ctx.fillStyle = '#FFB5E8';
     ctx.font = 'bold 14px monospace';
-    ctx.fillText('Fairylandia is saved!', W/2, 75);
+    if (this.currentLevel === 11) {
+      ctx.fillText('The shadows are vanquished!', W/2, 75);
+    } else {
+      ctx.fillText('Fairylandia is saved!', W/2, 75);
+    }
 
     // Fairy celebration
     const equipped = SaveData.data.equipped;
@@ -2779,17 +3029,35 @@ const Game = {
     const vAcc = COSMETICS.accessories.find(c => c.id === (equipped.accId || 'acc_0')) || COSMETICS.accessories[0];
     drawFairy(ctx, W/2, 130 + Math.sin(this.frame * 0.08) * 5, hair.color, wing.color, outfit.color, this.frame, false, true, vEye.color, vShoe.color, { type: vAcc.type, color: vAcc.color });
 
-    // Bubble with defeated boss
-    const bubbleR = 15 + Math.sin(this.frame * 0.1) * 2;
-    ctx.strokeStyle = '#FFB5E8';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(W/2 + 60, 130, bubbleR, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.lineWidth = 1;
-    ctx.globalAlpha = 0.4;
-    drawBlackFairy(ctx, W/2 + 60, 130, 8, this.frame);
-    ctx.globalAlpha = 1;
+    if (this.currentLevel === 11) {
+      // Bubbles with both shadow fairies
+      for (let i = 0; i < 2; i++) {
+        const bx = W/2 + 50 + i * 40;
+        const bubbleR = 12 + Math.sin(this.frame * 0.1 + i) * 2;
+        const scheme = i === 0 ? SHADOW_SCHEMES.green : SHADOW_SCHEMES.purple;
+        ctx.strokeStyle = scheme.eyeColor + '88';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(bx, 130, bubbleR, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.lineWidth = 1;
+        ctx.globalAlpha = 0.4;
+        drawBlackFairy(ctx, bx, 130, 6, this.frame);
+        ctx.globalAlpha = 1;
+      }
+    } else {
+      // Bubble with defeated boss
+      const bubbleR = 15 + Math.sin(this.frame * 0.1) * 2;
+      ctx.strokeStyle = '#FFB5E8';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(W/2 + 60, 130, bubbleR, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.lineWidth = 1;
+      ctx.globalAlpha = 0.4;
+      drawBlackFairy(ctx, W/2 + 60, 130, 8, this.frame);
+      ctx.globalAlpha = 1;
+    }
 
     // Diamonds earned
     ctx.fillStyle = '#FFF';
@@ -2806,9 +3074,990 @@ const Game = {
 
     if (Input.clickInRect(W / 2 - homeW / 2, 225, homeW, homeH) || Input.pressed('Space') || Input.pressed('Enter')) {
       SaveData.addDiamonds(3);
-      if (SaveData.data.unlockedLevel < 10) SaveData.data.unlockedLevel = 10;
+      if (SaveData.data.unlockedLevel < 11) SaveData.data.unlockedLevel = 11;
       SaveData.save();
       this.state = 'HOME';
+    }
+  },
+  // === CARNIVAL ===
+  initCarnival() {
+    // Generate NPC fairies
+    this.carnivalNPCs = [];
+    const npcColors = [
+      { hair: '#FFB5E8', wing: '#D5AAFF', outfit: '#85E3FF' },
+      { hair: '#B5FFB5', wing: '#FFB5E8', outfit: '#FFFFD1' },
+      { hair: '#D5AAFF', wing: '#85E3FF', outfit: '#FFB5E8' },
+      { hair: '#FFCFAB', wing: '#B5FFB5', outfit: '#D5AAFF' },
+      { hair: '#85E3FF', wing: '#FFFFD1', outfit: '#FFCFAB' },
+    ];
+    for (let i = 0; i < 5; i++) {
+      const c = npcColors[i];
+      this.carnivalNPCs.push({
+        x: 60 + Math.random() * (W - 120),
+        y: 190 + Math.random() * 40,
+        dir: Math.random() < 0.5 ? -1 : 1,
+        hairColor: c.hair, wingColor: c.wing, outfitColor: c.outfit,
+        speed: 10 + Math.random() * 15,
+      });
+    }
+  },
+
+  updateCarnival() {
+    // Move NPC fairies
+    for (const npc of this.carnivalNPCs) {
+      npc.x += npc.dir * npc.speed * this.dt;
+      if (npc.x < 30 || npc.x > W - 30) npc.dir *= -1;
+    }
+  },
+
+  renderCarnival(ctx) {
+    // Carnival background - bright pastel sky
+    const grad = ctx.createLinearGradient(0, 0, 0, H);
+    grad.addColorStop(0, '#E8D5F5');
+    grad.addColorStop(0.6, '#FFE5EC');
+    grad.addColorStop(1, '#C8E6C8');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, H);
+
+    // Ground
+    ctx.fillStyle = '#A8D8A8';
+    ctx.fillRect(0, 220, W, 50);
+    ctx.fillStyle = '#90C890';
+    ctx.fillRect(0, 220, W, 2);
+
+    // Carnival tent tops
+    const tentColors = ['#FFB5E8', '#D5AAFF', '#85E3FF', '#FFFFD1', '#B5FFB5'];
+    for (let i = 0; i < 5; i++) {
+      const tx = 30 + i * 100;
+      // Tent peak
+      ctx.fillStyle = tentColors[i];
+      ctx.beginPath();
+      ctx.moveTo(tx, 80);
+      ctx.lineTo(tx + 40, 40);
+      ctx.lineTo(tx + 80, 80);
+      ctx.closePath();
+      ctx.fill();
+      // Tent body
+      ctx.fillStyle = tentColors[i] + 'AA';
+      ctx.fillRect(tx + 5, 80, 70, 60);
+      // Stripes
+      ctx.fillStyle = '#FFFFFF44';
+      for (let s = 0; s < 3; s++) {
+        ctx.fillRect(tx + 5 + s * 24, 80, 12, 60);
+      }
+    }
+
+    // Banner/bunting
+    ctx.strokeStyle = '#FFB5E8';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(20, 35);
+    for (let i = 0; i < 12; i++) {
+      const fx = 20 + i * 40;
+      ctx.quadraticCurveTo(fx + 20, 45, fx + 40, 35);
+    }
+    ctx.stroke();
+    // Triangle flags
+    const flagColors = ['#FFB5E8', '#85E3FF', '#FFFFD1', '#D5AAFF', '#B5FFB5'];
+    for (let i = 0; i < 11; i++) {
+      const fx = 30 + i * 40;
+      ctx.fillStyle = flagColors[i % flagColors.length];
+      ctx.beginPath();
+      ctx.moveTo(fx, 35);
+      ctx.lineTo(fx + 8, 50);
+      ctx.lineTo(fx + 16, 35);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // String lights
+    if (this.frame % 20 < 10) {
+      for (let i = 0; i < 15; i++) {
+        ctx.fillStyle = flagColors[i % flagColors.length];
+        ctx.beginPath();
+        ctx.arc(20 + i * 32, 30, 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // Title
+    ctx.fillStyle = '#8B6AAA';
+    ctx.font = 'bold 16px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('CARNIVAL', W/2, 25);
+
+    const ts = isMobile ? 1.3 : 1;
+
+    // Attraction buttons (arranged in a grid)
+    const btnW = isMobile ? 105 : 85, btnH = isMobile ? 28 : 22;
+    const col1X = W/2 - btnW - 5, col2X = W/2 + 5;
+    const row1Y = 145, rowGap = btnH + 6;
+
+    drawButton(ctx, col1X, row1Y, btnW, btnH, 'COASTER 2\u2666', '#D5AAFF', '#FFF');
+    drawButton(ctx, col2X, row1Y, btnW, btnH, 'HAUNTED 2\u2666', '#8B6AAA', '#FFF');
+    drawButton(ctx, col1X, row1Y + rowGap, btnW, btnH, 'UNDERSEA 2\u2666', '#85E3FF', '#FFF');
+    drawButton(ctx, col2X, row1Y + rowGap, btnW, btnH, 'ICE CREAM 2\u2666', '#FFB5E8', '#FFF');
+    drawButton(ctx, W/2 - btnW/2, row1Y + rowGap * 2, btnW, btnH, 'BOTTLES', '#B5FFB5', '#FFF');
+
+    // Diamond counter
+    drawDiamond(ctx, W - 20, 15, this.frame, '#88DDFF');
+    ctx.fillStyle = '#8B6AAA';
+    ctx.font = `bold ${Math.floor(8 * ts)}px monospace`;
+    ctx.textAlign = 'right';
+    ctx.fillText(SaveData.data.diamondBalance + '', W - 28, 18);
+
+    // NPC fairies
+    for (const npc of this.carnivalNPCs) {
+      drawFairy(ctx, npc.x, npc.y, npc.hairColor, npc.wingColor, npc.outfitColor,
+        this.frame, false, false, '#4A3728', null, { type: 'none' });
+    }
+
+    // Player fairy (standing in center)
+    const equipped = SaveData.data.equipped;
+    const hair = COSMETICS.hair.find(c => c.id === equipped.hairId) || COSMETICS.hair[0];
+    const wing = COSMETICS.wings.find(c => c.id === equipped.wingId) || COSMETICS.wings[0];
+    const outfit = COSMETICS.outfits.find(c => c.id === equipped.outfitId) || COSMETICS.outfits[0];
+    const eye = COSMETICS.eyes.find(c => c.id === (equipped.eyeId || 'eye_0')) || COSMETICS.eyes[0];
+    const shoe = COSMETICS.shoes.find(c => c.id === (equipped.shoeId || 'shoe_0')) || COSMETICS.shoes[0];
+    const acc = COSMETICS.accessories.find(c => c.id === (equipped.accId || 'acc_0')) || COSMETICS.accessories[0];
+    const bob = Math.sin(this.frame * 0.05) * 3;
+    drawFairy(ctx, W/2, 120 + bob, hair.color, wing.color, outfit.color, this.frame, false, false,
+      eye.color, shoe.color, { type: acc.type, color: acc.color });
+
+    drawParticles(ctx);
+
+    // Handle clicks
+    if (Input.clickInRect(col1X, row1Y, btnW, btnH)) {
+      if (SaveData.data.diamondBalance >= 2) {
+        SaveData.addDiamonds(-2);
+        this.carnivalRide = { type: 'coaster', timer: 0, scrollX: 0, duration: 10 };
+        this.state = 'CARNIVAL_RIDE';
+      }
+    }
+    if (Input.clickInRect(col2X, row1Y, btnW, btnH)) {
+      if (SaveData.data.diamondBalance >= 2) {
+        SaveData.addDiamonds(-2);
+        this.carnivalRide = { type: 'haunted', timer: 0, scrollX: 0, duration: 10 };
+        this.state = 'CARNIVAL_RIDE';
+      }
+    }
+    if (Input.clickInRect(col1X, row1Y + rowGap, btnW, btnH)) {
+      if (SaveData.data.diamondBalance >= 2) {
+        SaveData.addDiamonds(-2);
+        this.carnivalRide = { type: 'underwater', timer: 0, scrollX: 0, duration: 10 };
+        this.state = 'CARNIVAL_RIDE';
+      }
+    }
+    if (Input.clickInRect(col2X, row1Y + rowGap, btnW, btnH)) {
+      if (SaveData.data.diamondBalance >= 2) {
+        SaveData.addDiamonds(-2);
+        this.carnivalIceCream = { licks: 0, rainbowTimer: 0, spinning: false, spinTimer: 0 };
+        this.state = 'CARNIVAL_ICECREAM';
+      }
+    }
+    if (Input.clickInRect(W/2 - btnW/2, row1Y + rowGap * 2, btnW, btnH)) {
+      this.initBottleGame();
+      this.state = 'CARNIVAL_BOTTLES';
+    }
+
+    // Back button
+    const backW = isMobile ? 70 : 60, backH = isMobile ? 24 : 20;
+    drawButton(ctx, 10, H - backH - 8, backW, backH, 'BACK', '#FF9999', '#FFF');
+    if (Input.clickInRect(10, H - backH - 8, backW, backH) || Input.pressed('Escape')) {
+      this.state = 'HOME';
+    }
+  },
+
+  // === CARNIVAL RIDES ===
+  updateCarnivalRide() {
+    const ride = this.carnivalRide;
+    if (!ride) return;
+    ride.timer += this.dt;
+    ride.scrollX += 80 * this.dt;
+
+    // Sparkle particles during ride
+    if (this.frame % 8 === 0) {
+      const colors = ['#FFB5E8', '#D5AAFF', '#85E3FF', '#FFD700'];
+      spawnParticles(Math.random() * W, Math.random() * H * 0.3, colors[Math.floor(Math.random() * colors.length)], 2, 20, 0.8);
+    }
+
+    if (ride.timer >= ride.duration) {
+      this.state = 'CARNIVAL';
+    }
+    if (Input.pressed('Escape')) {
+      this.state = 'CARNIVAL';
+    }
+  },
+
+  renderCarnivalRide(ctx) {
+    const ride = this.carnivalRide;
+    if (!ride) return;
+    const t = ride.timer;
+    const sx = ride.scrollX;
+
+    if (ride.type === 'coaster') {
+      // Sky gradient
+      const grad = ctx.createLinearGradient(0, 0, 0, H);
+      grad.addColorStop(0, '#D5E8FF');
+      grad.addColorStop(1, '#FFE5EC');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, W, H);
+
+      // Clouds
+      ctx.fillStyle = '#FFFFFF88';
+      for (let i = 0; i < 8; i++) {
+        const cx = ((i * 100 - sx * 0.3) % (W + 60)) - 30;
+        ctx.beginPath();
+        ctx.ellipse(cx, 30 + i * 10, 25, 8, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Roller coaster track
+      ctx.strokeStyle = '#8B6AAA';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      for (let x = -20; x <= W + 20; x += 2) {
+        const worldX = x + sx;
+        const y = 140 + Math.sin(worldX * 0.008) * 50 + Math.sin(worldX * 0.02) * 20 + Math.cos(worldX * 0.005) * 30;
+        if (x === -20) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+
+      // Track supports
+      ctx.strokeStyle = '#6B5A88';
+      ctx.lineWidth = 1;
+      for (let i = 0; i < 12; i++) {
+        const x = ((i * 50 - sx * 1) % (W + 50)) - 25;
+        const worldX = x + sx;
+        const trackY = 140 + Math.sin(worldX * 0.008) * 50 + Math.sin(worldX * 0.02) * 20 + Math.cos(worldX * 0.005) * 30;
+        ctx.beginPath();
+        ctx.moveTo(x, trackY);
+        ctx.lineTo(x, 250);
+        ctx.stroke();
+      }
+
+      // Cart with fairy
+      const cartWorldX = sx + W * 0.4;
+      const cartX = W * 0.4;
+      const cartY = 140 + Math.sin(cartWorldX * 0.008) * 50 + Math.sin(cartWorldX * 0.02) * 20 + Math.cos(cartWorldX * 0.005) * 30;
+      // Cart body
+      ctx.fillStyle = '#FFB5E8';
+      rrect(ctx, cartX - 12, cartY - 10, 24, 14, 4);
+      ctx.fill();
+      // Wheels
+      ctx.fillStyle = '#8B6AAA';
+      ctx.beginPath(); ctx.arc(cartX - 7, cartY + 5, 3, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(cartX + 7, cartY + 5, 3, 0, Math.PI * 2); ctx.fill();
+
+      // Fairy in cart
+      const eq = SaveData.data.equipped;
+      const hair = COSMETICS.hair.find(c => c.id === eq.hairId) || COSMETICS.hair[0];
+      const wing = COSMETICS.wings.find(c => c.id === eq.wingId) || COSMETICS.wings[0];
+      const outfit = COSMETICS.outfits.find(c => c.id === eq.outfitId) || COSMETICS.outfits[0];
+      drawFairy(ctx, cartX, cartY - 18, hair.color, wing.color, outfit.color, this.frame, false, false, '#4A3728', null, { type: 'none' });
+
+      // Stars flying by
+      ctx.fillStyle = '#FFD700';
+      for (let i = 0; i < 6; i++) {
+        const starX = ((i * 90 - sx * 1.5 + 200) % (W + 40)) - 20;
+        const starY = 20 + i * 30;
+        ctx.beginPath(); ctx.arc(starX, starY, 2, 0, Math.PI * 2); ctx.fill();
+      }
+
+      // Title
+      ctx.fillStyle = '#FFF';
+      ctx.font = 'bold 12px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('ROLLER COASTER!', W/2, 20);
+
+    } else if (ride.type === 'haunted') {
+      // Dark castle interior
+      ctx.fillStyle = '#2D1A3D';
+      ctx.fillRect(0, 0, W, H);
+
+      // Stone walls
+      ctx.fillStyle = '#3D2A4D';
+      for (let i = 0; i < 20; i++) {
+        const bx = ((i * 30 - sx * 0.5) % (W + 30)) - 15;
+        rrect(ctx, bx, 0, 25, H, 2);
+        ctx.fill();
+      }
+
+      // Candles
+      for (let i = 0; i < 6; i++) {
+        const cx = ((i * 80 + 40 - sx * 0.3) % (W + 80)) - 40;
+        // Candle body
+        ctx.fillStyle = '#FFFFD1';
+        ctx.fillRect(cx - 2, 50, 4, 15);
+        // Flame
+        ctx.fillStyle = '#FFD700';
+        ctx.beginPath(); ctx.arc(cx, 48, 4, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#FF8800';
+        ctx.beginPath(); ctx.arc(cx, 46, 2, 0, Math.PI * 2); ctx.fill();
+        // Glow
+        ctx.fillStyle = '#FFD70022';
+        ctx.beginPath(); ctx.arc(cx, 50, 20, 0, Math.PI * 2); ctx.fill();
+      }
+
+      // Ghosts (white floating blobs)
+      for (let i = 0; i < 4; i++) {
+        const gx = ((i * 130 + 60 - sx * 0.8) % (W + 100)) - 50;
+        const gy = 80 + Math.sin(t * 2 + i) * 20;
+        ctx.fillStyle = '#FFFFFF88';
+        ctx.beginPath();
+        ctx.ellipse(gx, gy, 12, 15, 0, 0, Math.PI * 2);
+        ctx.fill();
+        // Ghost eyes
+        ctx.fillStyle = '#333';
+        ctx.beginPath(); ctx.arc(gx - 4, gy - 3, 2, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(gx + 4, gy - 3, 2, 0, Math.PI * 2); ctx.fill();
+        // Ghost mouth
+        ctx.beginPath(); ctx.arc(gx, gy + 3, 3, 0, Math.PI); ctx.fill();
+      }
+
+      // Spiders (dangling)
+      for (let i = 0; i < 3; i++) {
+        const spx = ((i * 160 + 100 - sx * 0.6) % (W + 100)) - 50;
+        const threadLen = 30 + Math.sin(t + i * 2) * 10;
+        ctx.strokeStyle = '#888';
+        ctx.lineWidth = 0.5;
+        ctx.beginPath(); ctx.moveTo(spx, 0); ctx.lineTo(spx, threadLen); ctx.stroke();
+        ctx.fillStyle = '#333';
+        ctx.beginPath(); ctx.arc(spx, threadLen, 4, 0, Math.PI * 2); ctx.fill();
+        // Spider legs
+        for (let leg = 0; leg < 4; leg++) {
+          const a = (leg / 4) * Math.PI - Math.PI / 2;
+          ctx.beginPath();
+          ctx.moveTo(spx + Math.cos(a) * 4, threadLen + Math.sin(a) * 4);
+          ctx.lineTo(spx + Math.cos(a) * 8, threadLen + Math.sin(a) * 8 + 3);
+          ctx.stroke();
+        }
+      }
+
+      // Pumpkins
+      for (let i = 0; i < 3; i++) {
+        const px = ((i * 170 + 50 - sx * 0.7) % (W + 100)) - 50;
+        ctx.fillStyle = '#FF8844';
+        ctx.beginPath(); ctx.ellipse(px, 210, 12, 10, 0, 0, Math.PI * 2); ctx.fill();
+        // Face
+        ctx.fillStyle = '#FFD700';
+        ctx.beginPath(); ctx.arc(px - 4, 207, 2, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(px + 4, 207, 2, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(px - 3, 213); ctx.lineTo(px, 210); ctx.lineTo(px + 3, 213); ctx.stroke();
+        // Stem
+        ctx.fillStyle = '#228B22';
+        ctx.fillRect(px - 1, 198, 2, 4);
+      }
+
+      // Vampires (capes)
+      for (let i = 0; i < 2; i++) {
+        const vx = ((i * 220 + 180 - sx * 0.9) % (W + 100)) - 50;
+        const vy = 130 + Math.sin(t * 1.5 + i * 3) * 15;
+        // Cape
+        ctx.fillStyle = '#4A0000CC';
+        ctx.beginPath();
+        ctx.moveTo(vx - 8, vy - 5);
+        ctx.quadraticCurveTo(vx, vy + 20, vx + 8, vy - 5);
+        ctx.closePath(); ctx.fill();
+        // Head
+        ctx.fillStyle = '#E8D8D8';
+        ctx.beginPath(); ctx.arc(vx, vy - 8, 5, 0, Math.PI * 2); ctx.fill();
+        // Eyes
+        ctx.fillStyle = '#FF0000';
+        ctx.beginPath(); ctx.arc(vx - 2, vy - 9, 1, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(vx + 2, vy - 9, 1, 0, Math.PI * 2); ctx.fill();
+      }
+
+      // Zombies (green)
+      for (let i = 0; i < 2; i++) {
+        const zx = ((i * 200 + 120 - sx * 0.5) % (W + 100)) - 50;
+        ctx.fillStyle = '#88AA66';
+        ctx.beginPath(); ctx.ellipse(zx, 190, 6, 10, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#99BB77';
+        ctx.beginPath(); ctx.arc(zx, 178, 5, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#333';
+        ctx.beginPath(); ctx.arc(zx - 2, 177, 1, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(zx + 2, 177, 1, 0, Math.PI * 2); ctx.fill();
+      }
+
+      // Cactuses (why not!)
+      for (let i = 0; i < 2; i++) {
+        const cx = ((i * 250 + 200 - sx * 0.4) % (W + 100)) - 50;
+        ctx.fillStyle = '#5A8A5A';
+        ctx.fillRect(cx - 3, 195, 6, 25);
+        ctx.fillRect(cx - 8, 200, 6, 4);
+        ctx.fillRect(cx + 2, 205, 6, 4);
+        // Spines
+        ctx.fillStyle = '#FFFFD1';
+        for (let s = 0; s < 4; s++) {
+          ctx.fillRect(cx + 3, 196 + s * 5, 2, 1);
+          ctx.fillRect(cx - 5, 199 + s * 4, 2, 1);
+        }
+      }
+
+      // Cart on track
+      const eq2 = SaveData.data.equipped;
+      const h2 = COSMETICS.hair.find(c => c.id === eq2.hairId) || COSMETICS.hair[0];
+      const w2 = COSMETICS.wings.find(c => c.id === eq2.wingId) || COSMETICS.wings[0];
+      const o2 = COSMETICS.outfits.find(c => c.id === eq2.outfitId) || COSMETICS.outfits[0];
+      ctx.fillStyle = '#6A4A8A';
+      rrect(ctx, W/2 - 15, 230, 30, 16, 4);
+      ctx.fill();
+      drawFairy(ctx, W/2, 220, h2.color, w2.color, o2.color, this.frame, false, false, '#4A3728', null, { type: 'none' });
+
+      ctx.fillStyle = '#FFF';
+      ctx.font = 'bold 12px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('HAUNTED CASTLE', W/2, 20);
+
+    } else if (ride.type === 'underwater') {
+      // Deep blue gradient
+      const grad = ctx.createLinearGradient(0, 0, 0, H);
+      grad.addColorStop(0, '#1A4A7A');
+      grad.addColorStop(1, '#0A2A4A');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, W, H);
+
+      // Plastic tube (semi-transparent walls)
+      ctx.strokeStyle = '#88CCFF44';
+      ctx.lineWidth = 8;
+      ctx.beginPath(); ctx.moveTo(0, 60); ctx.lineTo(W, 60); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, 210); ctx.lineTo(W, 210); ctx.stroke();
+      // Tube interior glow
+      ctx.fillStyle = '#88CCFF0A';
+      ctx.fillRect(0, 60, W, 150);
+
+      // Bubbles
+      for (let i = 0; i < 15; i++) {
+        const bx = ((i * 40 + sx * 0.2) % W);
+        const by = 80 + (i * 37 + Math.sin(t * 2 + i) * 20) % 120;
+        const br = 2 + (i % 3);
+        ctx.strokeStyle = '#88CCFF66';
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.arc(bx, by, br, 0, Math.PI * 2); ctx.stroke();
+        ctx.fillStyle = '#88CCFF22';
+        ctx.beginPath(); ctx.arc(bx, by, br, 0, Math.PI * 2); ctx.fill();
+      }
+
+      // Fish (colorful)
+      const fishColors = ['#FF8844', '#FFB5E8', '#85E3FF', '#B5FFB5', '#FFFFD1', '#FF6B6B'];
+      for (let i = 0; i < 8; i++) {
+        const fx = ((i * 70 - sx * 0.6 + 300) % (W + 60)) - 30;
+        const fy = 90 + (i * 23) % 100;
+        const fc = fishColors[i % fishColors.length];
+        ctx.fillStyle = fc;
+        // Fish body
+        ctx.beginPath();
+        ctx.ellipse(fx, fy, 8, 4, 0, 0, Math.PI * 2);
+        ctx.fill();
+        // Tail
+        ctx.beginPath();
+        ctx.moveTo(fx + 8, fy);
+        ctx.lineTo(fx + 14, fy - 4);
+        ctx.lineTo(fx + 14, fy + 4);
+        ctx.closePath(); ctx.fill();
+        // Eye
+        ctx.fillStyle = '#333';
+        ctx.beginPath(); ctx.arc(fx - 3, fy - 1, 1, 0, Math.PI * 2); ctx.fill();
+      }
+
+      // Coral
+      const coralColors = ['#FFB5E8', '#FF8844', '#D5AAFF'];
+      for (let i = 0; i < 6; i++) {
+        const cx = ((i * 90 + 30 - sx * 0.3) % (W + 60)) - 30;
+        ctx.fillStyle = coralColors[i % coralColors.length];
+        // Coral branches
+        for (let b = 0; b < 3; b++) {
+          ctx.beginPath();
+          ctx.moveTo(cx + b * 6 - 6, 250);
+          ctx.quadraticCurveTo(cx + b * 6 - 3 + Math.sin(b) * 3, 230, cx + b * 6 - 6 + Math.sin(b + 1) * 5, 215);
+          ctx.lineWidth = 3; ctx.strokeStyle = coralColors[i % coralColors.length]; ctx.stroke();
+        }
+      }
+
+      // Starfish
+      for (let i = 0; i < 3; i++) {
+        const sx2 = ((i * 160 + 80 - sx * 0.2) % (W + 60)) - 30;
+        ctx.fillStyle = '#FFB5E8';
+        ctx.beginPath();
+        for (let p = 0; p < 5; p++) {
+          const a = (p / 5) * Math.PI * 2 - Math.PI / 2;
+          const r = p % 2 === 0 ? 6 : 3;
+          ctx.lineTo(sx2 + Math.cos(a) * r, 240 + Math.sin(a) * r);
+        }
+        ctx.closePath(); ctx.fill();
+      }
+
+      // Seahorse
+      const shx = ((200 - sx * 0.4) % (W + 60)) - 30;
+      ctx.fillStyle = '#FFD700';
+      ctx.beginPath();
+      ctx.ellipse(shx, 140, 4, 8, 0.2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath(); ctx.arc(shx - 1, 130, 4, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#333';
+      ctx.beginPath(); ctx.arc(shx - 2, 129, 1, 0, Math.PI * 2); ctx.fill();
+
+      // Fairy in tube cart
+      const eq3 = SaveData.data.equipped;
+      const h3 = COSMETICS.hair.find(c => c.id === eq3.hairId) || COSMETICS.hair[0];
+      const w3 = COSMETICS.wings.find(c => c.id === eq3.wingId) || COSMETICS.wings[0];
+      const o3 = COSMETICS.outfits.find(c => c.id === eq3.outfitId) || COSMETICS.outfits[0];
+      ctx.fillStyle = '#88CCFF44';
+      rrect(ctx, W/2 - 15, 125, 30, 16, 6);
+      ctx.fill();
+      drawFairy(ctx, W/2, 120, h3.color, w3.color, o3.color, this.frame, false, false, '#4A3728', null, { type: 'none' });
+
+      ctx.fillStyle = '#88CCFF';
+      ctx.font = 'bold 12px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('UNDERWATER RIDE', W/2, 50);
+    }
+
+    drawParticles(ctx);
+
+    // Progress bar
+    const progress = Math.min(1, ride.timer / ride.duration);
+    ctx.fillStyle = '#00000044';
+    rrect(ctx, 50, H - 8, W - 100, 4, 2);
+    ctx.fill();
+    ctx.fillStyle = '#FFD700';
+    rrect(ctx, 50, H - 8, (W - 100) * progress, 4, 2);
+    ctx.fill();
+
+    // Skip button
+    const skipW = isMobile ? 60 : 50, skipH = isMobile ? 22 : 16;
+    drawButton(ctx, W - skipW - 5, 5, skipW, skipH, 'SKIP', '#FF999988', '#FFF');
+    if (Input.clickInRect(W - skipW - 5, 5, skipW, skipH)) {
+      this.state = 'CARNIVAL';
+    }
+  },
+
+  // === ICE CREAM ===
+  updateCarnivalIceCream() {
+    const ic = this.carnivalIceCream;
+    if (!ic) return;
+
+    if (ic.rainbowTimer > 0) {
+      ic.rainbowTimer -= this.dt;
+      if (ic.rainbowTimer <= 0) ic.spinning = false;
+    }
+
+    // Lick with L key or tap on ice cream area
+    if (Input.pressed('KeyL') || Input.clickInRect(W/2 - 40, 60, 80, 120)) {
+      ic.licks++;
+      ic.rainbowTimer = 1.5;
+      ic.spinning = true;
+      spawnParticles(W/2, 100, '#FFB5E8', 8, 30, 0.5);
+      spawnParticles(W/2, 100, '#FFD700', 5, 25, 0.4);
+    }
+
+    if (Input.pressed('Escape')) {
+      this.state = 'CARNIVAL';
+    }
+  },
+
+  renderCarnivalIceCream(ctx) {
+    const ic = this.carnivalIceCream;
+    if (!ic) return;
+
+    // Background
+    const grad = ctx.createLinearGradient(0, 0, 0, H);
+    grad.addColorStop(0, '#FFE5EC');
+    grad.addColorStop(1, '#E8D5F5');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, H);
+
+    // Ice cream truck in background
+    ctx.fillStyle = '#FFB5E8';
+    rrect(ctx, W/2 - 80, 170, 160, 70, 10);
+    ctx.fill();
+    ctx.fillStyle = '#FF88BB';
+    rrect(ctx, W/2 - 75, 175, 150, 20, 6);
+    ctx.fill();
+    ctx.fillStyle = '#FFF';
+    ctx.font = 'bold 8px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('ICE CREAM', W/2, 188);
+    // Wheels
+    ctx.fillStyle = '#666';
+    ctx.beginPath(); ctx.arc(W/2 - 50, 240, 8, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(W/2 + 50, 240, 8, 0, Math.PI * 2); ctx.fill();
+
+    // Ice cream cone (big, centered)
+    const coneX = W/2, coneY = 115;
+    // Cone
+    ctx.fillStyle = '#DEB887';
+    ctx.beginPath();
+    ctx.moveTo(coneX - 15, coneY);
+    ctx.lineTo(coneX, coneY + 40);
+    ctx.lineTo(coneX + 15, coneY);
+    ctx.closePath(); ctx.fill();
+    // Waffle pattern
+    ctx.strokeStyle = '#C8A060';
+    ctx.lineWidth = 0.5;
+    for (let i = 0; i < 4; i++) {
+      ctx.beginPath();
+      ctx.moveTo(coneX - 13 + i * 3, coneY + 2);
+      ctx.lineTo(coneX - 3 + i * 1, coneY + 35);
+      ctx.stroke();
+    }
+
+    // Scoops (pastel colors, stacked)
+    const scoopColors = ['#FFB5E8', '#85E3FF', '#B5FFB5'];
+    for (let i = 0; i < 3; i++) {
+      ctx.fillStyle = scoopColors[i];
+      ctx.beginPath();
+      ctx.arc(coneX, coneY - 5 - i * 12, 14, 0, Math.PI * 2);
+      ctx.fill();
+      // Highlight
+      ctx.fillStyle = '#FFFFFF66';
+      ctx.beginPath();
+      ctx.arc(coneX - 4, coneY - 8 - i * 12, 5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Sprinkles on top scoop
+    const sprinkleColors = ['#FFD700', '#FF6B6B', '#D5AAFF', '#FFFFD1'];
+    for (let i = 0; i < 8; i++) {
+      ctx.fillStyle = sprinkleColors[i % sprinkleColors.length];
+      const sx = coneX - 10 + Math.sin(i * 1.7) * 10;
+      const sy = coneY - 25 + Math.cos(i * 1.3) * 8;
+      ctx.fillRect(sx, sy, 2, 1);
+    }
+
+    // Fairy
+    const equipped = SaveData.data.equipped;
+    const hair = COSMETICS.hair.find(c => c.id === equipped.hairId) || COSMETICS.hair[0];
+    const wing = COSMETICS.wings.find(c => c.id === equipped.wingId) || COSMETICS.wings[0];
+    const outfit = COSMETICS.outfits.find(c => c.id === equipped.outfitId) || COSMETICS.outfits[0];
+    const eye = COSMETICS.eyes.find(c => c.id === (equipped.eyeId || 'eye_0')) || COSMETICS.eyes[0];
+    const shoe = COSMETICS.shoes.find(c => c.id === (equipped.shoeId || 'shoe_0')) || COSMETICS.shoes[0];
+    const acc = COSMETICS.accessories.find(c => c.id === (equipped.accId || 'acc_0')) || COSMETICS.accessories[0];
+
+    // Rainbow effect when licking
+    let fairyHair = hair.color, fairyWing = wing.color, fairyOutfit = outfit.color;
+    if (ic.rainbowTimer > 0) {
+      const rPhase = this.frame * 0.15;
+      const rainbowColors = ['#FFB5E8', '#D5AAFF', '#85E3FF', '#B5FFB5', '#FFFFD1', '#FFCFAB'];
+      fairyHair = rainbowColors[Math.floor(rPhase) % rainbowColors.length];
+      fairyWing = rainbowColors[Math.floor(rPhase + 2) % rainbowColors.length];
+      fairyOutfit = rainbowColors[Math.floor(rPhase + 4) % rainbowColors.length];
+    }
+
+    const bob = Math.sin(this.frame * 0.05) * 3;
+    drawFairy(ctx, W/2 + 60, 100 + bob, fairyHair, fairyWing, fairyOutfit, this.frame,
+      false, ic.spinning, eye.color, shoe.color, { type: acc.type, color: acc.color });
+
+    drawParticles(ctx);
+
+    // Instructions
+    ctx.fillStyle = '#8B6AAA';
+    ctx.font = 'bold 14px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('ICE CREAM TIME!', W/2, 20);
+
+    ctx.fillStyle = '#666';
+    ctx.font = '9px monospace';
+    if (isMobile) {
+      ctx.fillText('Tap the ice cream to lick!', W/2, 35);
+    } else {
+      ctx.fillText('Press L to lick!', W/2, 35);
+    }
+
+    // Lick counter
+    ctx.fillStyle = '#FFB5E8';
+    ctx.font = 'bold 10px monospace';
+    ctx.fillText('Licks: ' + ic.licks, W/2, 160);
+
+    // Back button
+    const backW = isMobile ? 70 : 60, backH = isMobile ? 24 : 20;
+    drawButton(ctx, 10, H - backH - 8, backW, backH, 'DONE', '#FF9999', '#FFF');
+    if (Input.clickInRect(10, H - backH - 8, backW, backH) || Input.pressed('Escape')) {
+      this.state = 'CARNIVAL';
+    }
+  },
+
+  // === BOTTLE GAME ===
+  initBottleGame() {
+    // Pyramid: 3 bottom, 2 middle, 1 top
+    const bottles = [];
+    const baseX = W * 0.65, baseY = 170;
+    const bw = 14, bh = 20, gap = 3;
+    // Bottom row
+    for (let i = 0; i < 3; i++) {
+      bottles.push({ x: baseX - (bw + gap) + i * (bw + gap), y: baseY, w: bw, h: bh, hit: false, vy: 0, falling: false });
+    }
+    // Middle row
+    for (let i = 0; i < 2; i++) {
+      bottles.push({ x: baseX - (bw + gap) / 2 + i * (bw + gap), y: baseY - bh - 2, w: bw, h: bh, hit: false, vy: 0, falling: false });
+    }
+    // Top
+    bottles.push({ x: baseX, y: baseY - (bh + 2) * 2, w: bw, h: bh, hit: false, vy: 0, falling: false });
+
+    this.carnivalBottles = {
+      bottles,
+      spells: [],
+      spellCount: 8,
+      aiming: 1, // 0=top, 1=mid, 2=bottom
+      won: false,
+      wonTimer: 0,
+      fairyPlushy: false,
+    };
+  },
+
+  updateCarnivalBottles() {
+    const bg = this.carnivalBottles;
+    if (!bg) return;
+
+    if (bg.won) {
+      bg.wonTimer += this.dt;
+      if (bg.wonTimer > 3 && (Input.pressed('Space') || Input.pressed('Enter') || Input.clicks.length > 0)) {
+        this.state = 'CARNIVAL';
+      }
+      return;
+    }
+
+    // Aim
+    if (Input.pressed('ArrowUp') || Input.pressed('KeyW') || Input.hasSwipe('up')) {
+      if (bg.aiming > 0) bg.aiming--;
+    }
+    if (Input.pressed('ArrowDown') || Input.pressed('KeyS') || Input.hasSwipe('down')) {
+      if (bg.aiming < 2) bg.aiming++;
+    }
+
+    // Cast
+    const castTrig = Input.pressed('Space') ||
+      (isMobile && Input.clickInRect(W - 70, H - 70, 60, 60)) ||
+      (isMobile && Input.hasSwipe('right'));
+    if (castTrig && bg.spellCount > 0) {
+      bg.spellCount--;
+      const aimY = LANE_Y[bg.aiming];
+      bg.spells.push({ x: PLAYER_X + 15, y: aimY, speed: 200, alive: true });
+      spawnParticles(PLAYER_X + 15, aimY, '#FFD700', 5, 40, 0.3);
+    }
+
+    // Update spells
+    for (const spell of bg.spells) {
+      if (!spell.alive) continue;
+      spell.x += spell.speed * this.dt;
+      if (spell.x > W + 20) spell.alive = false;
+
+      // Hit detection
+      for (const bottle of bg.bottles) {
+        if (bottle.hit) continue;
+        if (Math.abs(spell.x - bottle.x) < bottle.w / 2 + 5 &&
+            Math.abs(spell.y - bottle.y) < bottle.h / 2 + 5) {
+          bottle.hit = true;
+          bottle.falling = true;
+          bottle.vy = -30;
+          spell.alive = false;
+          spawnParticles(bottle.x, bottle.y, '#D5AAFF', 8, 40, 0.5);
+          this.shakeTimer = 0.1;
+          this.shakeIntensity = 2;
+          break;
+        }
+      }
+    }
+    bg.spells = bg.spells.filter(s => s.alive);
+
+    // Falling bottles
+    for (const bottle of bg.bottles) {
+      if (bottle.falling) {
+        bottle.vy += 150 * this.dt;
+        bottle.y += bottle.vy * this.dt;
+        bottle.x += (Math.random() - 0.5) * 2;
+      }
+    }
+
+    // Check win
+    if (bg.bottles.every(b => b.hit) && !bg.won) {
+      bg.won = true;
+      bg.wonTimer = 0;
+      bg.fairyPlushy = true;
+      spawnParticles(W * 0.65, 150, '#FFD700', 20, 60, 1.0);
+      spawnParticles(W * 0.65, 150, '#FFB5E8', 15, 50, 0.8);
+    }
+
+    // Out of spells, not all hit = can restart
+    if (bg.spellCount <= 0 && bg.spells.length === 0 && !bg.won) {
+      // Auto-restart after a moment
+    }
+
+    if (Input.pressed('Escape')) {
+      this.state = 'CARNIVAL';
+    }
+  },
+
+  renderCarnivalBottles(ctx) {
+    const bg = this.carnivalBottles;
+    if (!bg) return;
+
+    // Background
+    const grad = ctx.createLinearGradient(0, 0, 0, H);
+    grad.addColorStop(0, '#E8D5F5');
+    grad.addColorStop(1, '#FFE5EC');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, H);
+
+    // Booth
+    ctx.fillStyle = '#D5AAFF';
+    rrect(ctx, W * 0.45, 60, W * 0.45, 160, 10);
+    ctx.fill();
+    // Booth stripes
+    ctx.fillStyle = '#FFFFFF33';
+    for (let i = 0; i < 5; i++) {
+      ctx.fillRect(W * 0.45 + i * 42, 60, 21, 160);
+    }
+    // Counter
+    ctx.fillStyle = '#8B6AAA';
+    ctx.fillRect(W * 0.43, 195, W * 0.49, 8);
+
+    // Shelf for bottles
+    ctx.fillStyle = '#B8A0D0';
+    ctx.fillRect(W * 0.5, 190, W * 0.3, 3);
+    ctx.fillRect(W * 0.52, 168, W * 0.26, 3);
+    ctx.fillRect(W * 0.57, 146, W * 0.16, 3);
+
+    // Bottles
+    for (const bottle of bg.bottles) {
+      if (bottle.y > H + 30) continue; // off screen
+      ctx.fillStyle = bottle.hit ? '#D5AAFF44' : '#88DDFF';
+      if (!bottle.hit) {
+        // Bottle shape
+        rrect(ctx, bottle.x - bottle.w/2, bottle.y - bottle.h/2, bottle.w, bottle.h, 3);
+        ctx.fill();
+        // Bottle neck
+        ctx.fillStyle = '#88DDFF';
+        ctx.fillRect(bottle.x - 3, bottle.y - bottle.h/2 - 5, 6, 6);
+        // Label
+        ctx.fillStyle = '#FFB5E8';
+        rrect(ctx, bottle.x - bottle.w/2 + 2, bottle.y - 3, bottle.w - 4, 8, 2);
+        ctx.fill();
+      }
+    }
+
+    // Spells in flight
+    for (const spell of bg.spells) {
+      if (!spell.alive) continue;
+      drawSpell(ctx, spell.x, spell.y, this.frame);
+    }
+
+    // Aiming reticle
+    const aimY = LANE_Y[bg.aiming];
+    ctx.strokeStyle = '#FFD70088';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath();
+    ctx.moveTo(PLAYER_X + 20, aimY);
+    ctx.lineTo(W * 0.5, aimY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    // Crosshair
+    ctx.strokeStyle = '#FFD700';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(PLAYER_X + 15, aimY, 5, 0, Math.PI * 2); ctx.stroke();
+
+    // Player fairy
+    const equipped = SaveData.data.equipped;
+    const hair = COSMETICS.hair.find(c => c.id === equipped.hairId) || COSMETICS.hair[0];
+    const wing = COSMETICS.wings.find(c => c.id === equipped.wingId) || COSMETICS.wings[0];
+    const outfit = COSMETICS.outfits.find(c => c.id === equipped.outfitId) || COSMETICS.outfits[0];
+    const eye = COSMETICS.eyes.find(c => c.id === (equipped.eyeId || 'eye_0')) || COSMETICS.eyes[0];
+    const shoe = COSMETICS.shoes.find(c => c.id === (equipped.shoeId || 'shoe_0')) || COSMETICS.shoes[0];
+    const acc = COSMETICS.accessories.find(c => c.id === (equipped.accId || 'acc_0')) || COSMETICS.accessories[0];
+    drawFairy(ctx, PLAYER_X, aimY, hair.color, wing.color, outfit.color, this.frame,
+      false, false, eye.color, shoe.color, { type: acc.type, color: acc.color });
+
+    // NPC fairy running the booth
+    drawFairy(ctx, W * 0.85, 185, '#FFCFAB', '#B5FFB5', '#D5AAFF', this.frame, false, false, '#4A3728', null, { type: 'none' });
+
+    drawParticles(ctx);
+
+    // HUD
+    ctx.fillStyle = '#8B6AAA';
+    ctx.font = 'bold 14px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('KNOCK THE BOTTLES!', W/2, 20);
+
+    ctx.fillStyle = '#FFD700';
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('Spells: ' + bg.spellCount, 10, 15);
+
+    ctx.fillStyle = '#666';
+    ctx.font = '8px monospace';
+    if (isMobile) {
+      ctx.fillText('Swipe UP/DOWN aim, tap CAST', 10, 28);
+    } else {
+      ctx.fillText('UP/DOWN aim, SPACE cast', 10, 28);
+    }
+
+    // Mobile cast button
+    if (isMobile) {
+      drawButton(ctx, W - 70, H - 70, 60, 60, 'CAST', '#FFD700CC', '#FFF');
+    }
+
+    // Win screen
+    if (bg.won) {
+      ctx.fillStyle = '#FFD70033';
+      ctx.fillRect(0, 0, W, H);
+
+      ctx.fillStyle = '#FFFFFFDD';
+      rrect(ctx, W/2 - 100, H/2 - 50, 200, 100, 12);
+      ctx.fill();
+
+      ctx.fillStyle = '#8B6AAA';
+      ctx.font = 'bold 16px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('YOU WIN!', W/2, H/2 - 20);
+
+      // Fairy plushy prize
+      ctx.fillStyle = '#FFB5E8';
+      ctx.beginPath(); ctx.ellipse(W/2, H/2 + 10, 12, 15, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(W/2, H/2 - 5, 8, 0, Math.PI * 2); ctx.fill();
+      // Plushy eyes
+      ctx.fillStyle = '#333';
+      ctx.beginPath(); ctx.arc(W/2 - 3, H/2 - 7, 1.5, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(W/2 + 3, H/2 - 7, 1.5, 0, Math.PI * 2); ctx.fill();
+      // Plushy wings
+      ctx.fillStyle = '#D5AAFF88';
+      ctx.beginPath(); ctx.ellipse(W/2 - 10, H/2, 6, 4, -0.3, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(W/2 + 10, H/2, 6, 4, 0.3, 0, Math.PI * 2); ctx.fill();
+
+      ctx.fillStyle = '#666';
+      ctx.font = '9px monospace';
+      ctx.fillText('A fairy plushy!', W/2, H/2 + 35);
+    }
+
+    // Restart if out of spells and didn't win
+    if (bg.spellCount <= 0 && bg.spells.length === 0 && !bg.won) {
+      ctx.fillStyle = '#00000066';
+      ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = '#FFF';
+      ctx.font = 'bold 14px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('Try again!', W/2, H/2 - 10);
+
+      const retryW = isMobile ? 100 : 80, retryH = isMobile ? 28 : 22;
+      drawButton(ctx, W/2 - retryW/2, H/2 + 5, retryW, retryH, 'RETRY', '#D5AAFF', '#FFF');
+      drawButton(ctx, W/2 - retryW/2, H/2 + 5 + retryH + 5, retryW, retryH, 'BACK', '#FF9999', '#FFF');
+
+      if (Input.clickInRect(W/2 - retryW/2, H/2 + 5, retryW, retryH)) {
+        this.initBottleGame();
+      }
+      if (Input.clickInRect(W/2 - retryW/2, H/2 + 5 + retryH + 5, retryW, retryH)) {
+        this.state = 'CARNIVAL';
+      }
+    }
+
+    // Back button (only show when game active)
+    if (!bg.won && bg.spellCount > 0) {
+      const backW = isMobile ? 70 : 60, backH = isMobile ? 24 : 20;
+      drawButton(ctx, 10, H - backH - 8, backW, backH, 'BACK', '#FF9999', '#FFF');
+      if (Input.clickInRect(10, H - backH - 8, backW, backH)) {
+        this.state = 'CARNIVAL';
+      }
     }
   },
 };
