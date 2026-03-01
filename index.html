@@ -2224,6 +2224,38 @@ const Game = {
       ctx.fillText('(tap to dismiss)', W / 2, H / 2 + 30);
       if (Input.clicks.length > 0) this.landscapePromptTimer = 0;
     }
+
+    // PWA install prompt (mobile, not already installed)
+    if (isMobile && !window.matchMedia('(display-mode: standalone)').matches && !this.pwaPromptDismissed && this.landscapePromptTimer <= 0) {
+      ctx.fillStyle = 'rgba(0,0,0,0.75)';
+      ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = '#FFFFFFEE';
+      rrect(ctx, W/2 - 130, H/2 - 65, 260, 130, 12);
+      ctx.fill();
+      ctx.fillStyle = '#8B6AAA';
+      ctx.font = 'bold 12px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('Install Fairylandia!', W/2, H/2 - 42);
+      ctx.fillStyle = '#555';
+      ctx.font = '8px monospace';
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+      if (isIOS) {
+        ctx.fillText('Tap the share button', W/2, H/2 - 22);
+        ctx.fillText('then "Add to Home Screen"', W/2, H/2 - 10);
+      } else {
+        ctx.fillText('Tap your browser menu', W/2, H/2 - 22);
+        ctx.fillText('then "Add to Home Screen"', W/2, H/2 - 10);
+        ctx.fillText('or "Install App"', W/2, H/2 + 2);
+      }
+      ctx.fillStyle = '#8B6AAA';
+      ctx.font = '8px monospace';
+      ctx.fillText('Play fullscreen with no browser bar!', W/2, H/2 + 20);
+      const dbw = 80, dbh = 22;
+      drawButton(ctx, W/2 - dbw/2, H/2 + 32, dbw, dbh, 'GOT IT', '#D5AAFF', '#FFF');
+      if (Input.clickInRect(W/2 - dbw/2, H/2 + 32, dbw, dbh)) {
+        this.pwaPromptDismissed = true;
+      }
+    }
   },
 
   renderLevelSelect(ctx) {
