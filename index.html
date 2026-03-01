@@ -1409,11 +1409,18 @@ const Game = {
 
     // Ring collision
     for (const ring of st.rings) {
+      if (ring.collectTimer > 0) {
+        ring.collectTimer -= this.dt;
+        if (ring.collectTimer <= 0) {
+          ring.collected = true;
+          spawnParticles(ring.x - st.scrollX, LANE_Y[ring.lane], '#FFD700', 12, 50, 0.6);
+        }
+        continue;
+      }
       if (ring.collected || ring.missed) continue;
       const dx = playerWorldX - ring.x;
       if (Math.abs(dx) < 18 && Math.abs(LANE_Y[ring.lane] - p.y) < 22 && p.crouching) {
-        ring.collected = true;
-        spawnParticles(ring.x - st.scrollX, LANE_Y[ring.lane], '#FFD700', 12, 50, 0.6);
+        ring.collectTimer = 0.35;
       } else if (dx > 20) {
         ring.missed = true;
         this.initTutorialPage(page);
@@ -1698,13 +1705,21 @@ const Game = {
     const ringHitDist = isMobile ? 22 : 18;
     const ringLaneDist = isMobile ? 26 : 22;
     for (const ring of level.rings) {
+      // Tick down collect animation
+      if (ring.collectTimer > 0) {
+        ring.collectTimer -= this.dt;
+        if (ring.collectTimer <= 0) {
+          ring.collected = true;
+          spawnParticles(ring.x - this.scrollX, LANE_Y[ring.lane], '#FFD700', 12, 50, 0.6);
+          spawnParticles(ring.x - this.scrollX, LANE_Y[ring.lane], '#FFEC80', 8, 40, 0.4);
+        }
+        continue;
+      }
       if (ring.collected || ring.missed) continue;
       const dx = playerWorldX - ring.x;
       const sameOrCloseLane = Math.abs(LANE_Y[ring.lane] - p.y) < ringLaneDist;
       if (Math.abs(dx) < ringHitDist && sameOrCloseLane && p.crouching) {
-        ring.collected = true;
-        spawnParticles(ring.x - this.scrollX, LANE_Y[ring.lane], '#FFD700', 12, 50, 0.6);
-        spawnParticles(ring.x - this.scrollX, LANE_Y[ring.lane], '#FFEC80', 8, 40, 0.4);
+        ring.collectTimer = 0.35; // fairy passes through, then poof
       } else if (dx > 20) {
         ring.missed = true;
         p.knockback = 1;
@@ -2260,9 +2275,9 @@ const Game = {
         if (sx > -30 && sx < W + 30) drawObstacle(ctx, sx, LANE_Y[obs.lane], obs.type, obs.w, obs.h);
       }
 
-      // Rings
+      // Rings (uncollected, behind player)
       for (const ring of st.rings) {
-        if (ring.collected) continue;
+        if (ring.collected || ring.collectTimer > 0) continue;
         const sx = ring.x - st.scrollX;
         if (sx > -30 && sx < W + 30) drawRing(ctx, sx, LANE_Y[ring.lane], this.frame, false);
       }
@@ -2290,6 +2305,21 @@ const Game = {
       // Player fairy
       drawFairy(ctx, PLAYER_X, p.y, hair.color, wing.color, outfit.color, this.frame,
         p.crouching, p.spinning, eye.color, shoe.color, accObj);
+
+      // Rings being collected (in front of player, fading)
+      for (const ring of st.rings) {
+        if (!ring.collectTimer || ring.collectTimer <= 0) continue;
+        const sx = ring.x - st.scrollX;
+        if (sx < -30 || sx > W + 30) continue;
+        const t = 1 - ring.collectTimer / 0.35;
+        ctx.save();
+        ctx.globalAlpha = 1 - t;
+        ctx.translate(sx, LANE_Y[ring.lane]);
+        ctx.scale(1 + t * 0.8, 1 + t * 0.8);
+        ctx.translate(-sx, -LANE_Y[ring.lane]);
+        drawRing(ctx, sx, LANE_Y[ring.lane], this.frame, false);
+        ctx.restore();
+      }
 
       // On-screen controls
       if (isMobile) {
@@ -2408,12 +2438,12 @@ const Game = {
       drawObstacle(ctx, screenX, LANE_Y[obs.lane], obs.type, obs.w, obs.h);
     }
 
-    // Rings
+    // Rings (behind player — uncollected ones)
     for (const ring of level.rings) {
-      if (ring.collected) continue;
+      if (ring.collected || ring.collectTimer > 0) continue;
       const screenX = ring.x - this.scrollX;
       if (screenX < -30 || screenX > W + 30) continue;
-      drawRing(ctx, screenX, LANE_Y[ring.lane], this.frame, ring.collected);
+      drawRing(ctx, screenX, LANE_Y[ring.lane], this.frame, false);
     }
 
     // Diamonds
@@ -2448,6 +2478,21 @@ const Game = {
     }
     drawFairy(ctx, PLAYER_X - p.knockback * 10, p.y, p.hairColor, p.wingColor, p.outfitColor,
       this.frame, p.crouching, p.spinning, p.eyeColor, p.shoeColor, p.accessory);
+
+    // Rings being collected (drawn in front of player, fading out)
+    for (const ring of level.rings) {
+      if (!ring.collectTimer || ring.collectTimer <= 0) continue;
+      const screenX = ring.x - this.scrollX;
+      if (screenX < -30 || screenX > W + 30) continue;
+      const t = 1 - ring.collectTimer / 0.35; // 0→1 as it fades
+      ctx.save();
+      ctx.globalAlpha = 1 - t;
+      ctx.translate(screenX, LANE_Y[ring.lane]);
+      ctx.scale(1 + t * 0.8, 1 + t * 0.8);
+      ctx.translate(-screenX, -LANE_Y[ring.lane]);
+      drawRing(ctx, screenX, LANE_Y[ring.lane], this.frame, false);
+      ctx.restore();
+    }
 
     // Particles
     drawParticles(ctx);
