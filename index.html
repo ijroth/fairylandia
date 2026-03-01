@@ -1257,7 +1257,8 @@ const Game = {
   carnivalRide: null, // { type: 'coaster'|'haunted'|'underwater', timer: 0, scrollX: 0 }
   carnivalIceCream: null, // { licks: 0, rainbowTimer: 0, spinning: false }
   carnivalBottles: null, // { bottles: [], spells: [], spellCount: 6, aiming: 1, won: false }
-  carnivalNPCs: [], // [{x, y, dir, hairColor, wingColor, outfitColor, speed}]
+  carnivalNPCs: [], // [{x, y, dir, hairColor, wingColor, outfitColor, speed, name}]
+  carnivalChat: null, // { npcIndex, lines, lineIndex, timer }
 
   // Landscape prompt
   showedLandscapePrompt: false,
@@ -3081,23 +3082,33 @@ const Game = {
   },
   // === CARNIVAL ===
   initCarnival() {
-    // Generate NPC fairies
+    // Generate NPC fairies with names
     this.carnivalNPCs = [];
-    const npcColors = [
-      { hair: '#FFB5E8', wing: '#D5AAFF', outfit: '#85E3FF' },
-      { hair: '#B5FFB5', wing: '#FFB5E8', outfit: '#FFFFD1' },
-      { hair: '#D5AAFF', wing: '#85E3FF', outfit: '#FFB5E8' },
-      { hair: '#FFCFAB', wing: '#B5FFB5', outfit: '#D5AAFF' },
-      { hair: '#85E3FF', wing: '#FFFFD1', outfit: '#FFCFAB' },
+    this.carnivalChat = null;
+    const npcData = [
+      { hair: '#FFB5E8', wing: '#D5AAFF', outfit: '#85E3FF', name: 'Rosie' },
+      { hair: '#B5FFB5', wing: '#FFB5E8', outfit: '#FFFFD1', name: 'Clover' },
+      { hair: '#D5AAFF', wing: '#85E3FF', outfit: '#FFB5E8', name: 'Luna' },
+      { hair: '#FFCFAB', wing: '#B5FFB5', outfit: '#D5AAFF', name: 'Sunny' },
+      { hair: '#85E3FF', wing: '#FFFFD1', outfit: '#FFCFAB', name: 'Skye' },
+    ];
+    const chatLines = [
+      ['{npc}: Hi there! I\'m {npc}!', '{player}: Nice to meet you! I\'m {player}!', '{npc}: Want to ride the coaster with me later?', '{player}: That sounds like so much fun!'],
+      ['{npc}: Hey! My name\'s {npc}!', '{player}: I\'m {player}! Love your wings!', '{npc}: Thanks! Want to play the bottle game?', '{player}: You\'re on! Let\'s go!'],
+      ['{npc}: Oh hello! I\'m {npc}!', '{player}: Hi {npc}! I\'m {player}!', '{npc}: Have you tried the haunted castle?', '{player}: Not yet! Is it scary?', '{npc}: A little... but so fun!'],
+      ['{npc}: Hi hi! I\'m {npc}!', '{player}: Hey! I\'m {player}!', '{npc}: The ice cream here is amazing!', '{player}: Ooh let\'s get some together!'],
+      ['{npc}: Hello! Name\'s {npc}!', '{player}: Nice to meet you! I\'m {player}!', '{npc}: Want to explore the underwater ride?', '{player}: Yes! I love seeing the fish!'],
     ];
     for (let i = 0; i < 5; i++) {
-      const c = npcColors[i];
+      const c = npcData[i];
       this.carnivalNPCs.push({
         x: 60 + Math.random() * (W - 120),
         y: 190 + Math.random() * 40,
         dir: Math.random() < 0.5 ? -1 : 1,
         hairColor: c.hair, wingColor: c.wing, outfitColor: c.outfit,
         speed: 10 + Math.random() * 15,
+        name: c.name,
+        chatLines: chatLines[i],
       });
     }
   },
@@ -3206,10 +3217,50 @@ const Game = {
     ctx.textAlign = 'right';
     ctx.fillText(SaveData.data.diamondBalance + '', W - 28, 18);
 
-    // NPC fairies
-    for (const npc of this.carnivalNPCs) {
+    // NPC fairies (clickable)
+    for (let i = 0; i < this.carnivalNPCs.length; i++) {
+      const npc = this.carnivalNPCs[i];
       drawFairy(ctx, npc.x, npc.y, npc.hairColor, npc.wingColor, npc.outfitColor,
         this.frame, false, false, '#4A3728', null, { type: 'none' });
+      // Name tag
+      ctx.fillStyle = '#8B6AAA';
+      ctx.font = '6px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(npc.name, npc.x, npc.y + 22);
+      // Click to talk
+      if (!this.carnivalChat && Input.clickInRect(npc.x - 18, npc.y - 18, 36, 40)) {
+        const playerName = COSMETICS.hair.find(c => c.id === SaveData.data.equipped.hairId)?.name.split(' ')[0] || 'Fairy';
+        this.carnivalChat = { npcIndex: i, lineIndex: 0, timer: 0,
+          lines: npc.chatLines.map(l => l.replace(/\{npc\}/g, npc.name).replace(/\{player\}/g, playerName)) };
+      }
+    }
+
+    // Chat bubble
+    if (this.carnivalChat) {
+      const chat = this.carnivalChat;
+      const npc = this.carnivalNPCs[chat.npcIndex];
+      const line = chat.lines[chat.lineIndex];
+      // Bubble
+      const bw2 = Math.min(260, line.length * 6 + 20);
+      ctx.fillStyle = '#FFFFFFEE';
+      rrect(ctx, W/2 - bw2/2, 55, bw2, 28, 8);
+      ctx.fill();
+      ctx.strokeStyle = '#D5AAFF';
+      rrect(ctx, W/2 - bw2/2, 55, bw2, 28, 8);
+      ctx.stroke();
+      ctx.fillStyle = '#555';
+      ctx.font = '8px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(line, W/2, 73);
+      // Tap to advance
+      ctx.fillStyle = '#AAA';
+      ctx.font = '6px monospace';
+      ctx.fillText('tap to continue', W/2, 88);
+      // Advance on click
+      if (Input.clickInRect(0, 0, W, H)) {
+        chat.lineIndex++;
+        if (chat.lineIndex >= chat.lines.length) this.carnivalChat = null;
+      }
     }
 
     // Player fairy (standing in center)
@@ -3781,25 +3832,30 @@ const Game = {
   // === BOTTLE GAME ===
   initBottleGame() {
     // Pyramid: 3 bottom, 2 middle, 1 top
+    // Use 6 aim lanes spread across play area so every bottle is reachable
     const bottles = [];
-    const baseX = W * 0.65, baseY = 170;
+    const baseX = W * 0.65;
     const bw = 14, bh = 20, gap = 3;
-    // Bottom row
+    // 6 evenly spaced aim lanes from y=80 to y=210
+    const bottleLanes = [];
+    for (let i = 0; i < 6; i++) bottleLanes.push(80 + i * 26);
+    // Bottom row (lanes 3,4,5 → y positions)
     for (let i = 0; i < 3; i++) {
-      bottles.push({ x: baseX - (bw + gap) + i * (bw + gap), y: baseY, w: bw, h: bh, hit: false, vy: 0, falling: false });
+      bottles.push({ x: baseX - (bw + gap) + i * (bw + gap), y: bottleLanes[3 + i], w: bw, h: bh, hit: false, vy: 0, falling: false });
     }
-    // Middle row
+    // Middle row (lanes 1,2)
     for (let i = 0; i < 2; i++) {
-      bottles.push({ x: baseX - (bw + gap) / 2 + i * (bw + gap), y: baseY - bh - 2, w: bw, h: bh, hit: false, vy: 0, falling: false });
+      bottles.push({ x: baseX - (bw + gap) / 2 + i * (bw + gap), y: bottleLanes[1 + i], w: bw, h: bh, hit: false, vy: 0, falling: false });
     }
-    // Top
-    bottles.push({ x: baseX, y: baseY - (bh + 2) * 2, w: bw, h: bh, hit: false, vy: 0, falling: false });
+    // Top (lane 0)
+    bottles.push({ x: baseX, y: bottleLanes[0], w: bw, h: bh, hit: false, vy: 0, falling: false });
 
     this.carnivalBottles = {
       bottles,
       spells: [],
       spellCount: 8,
-      aiming: 1, // 0=top, 1=mid, 2=bottom
+      aimLanes: bottleLanes,
+      aiming: 3, // start in middle
       won: false,
       wonTimer: 0,
       fairyPlushy: false,
@@ -3818,12 +3874,12 @@ const Game = {
       return;
     }
 
-    // Aim
+    // Aim (6 lanes)
     if (Input.pressed('ArrowUp') || Input.pressed('KeyW') || Input.hasSwipe('up')) {
       if (bg.aiming > 0) bg.aiming--;
     }
     if (Input.pressed('ArrowDown') || Input.pressed('KeyS') || Input.hasSwipe('down')) {
-      if (bg.aiming < 2) bg.aiming++;
+      if (bg.aiming < bg.aimLanes.length - 1) bg.aiming++;
     }
 
     // Cast
@@ -3832,7 +3888,7 @@ const Game = {
       (isMobile && Input.hasSwipe('right'));
     if (castTrig && bg.spellCount > 0) {
       bg.spellCount--;
-      const aimY = LANE_Y[bg.aiming];
+      const aimY = bg.aimLanes[bg.aiming];
       bg.spells.push({ x: PLAYER_X + 15, y: aimY, speed: 200, alive: true });
       spawnParticles(PLAYER_X + 15, aimY, '#FFD700', 5, 40, 0.3);
     }
@@ -3944,7 +4000,7 @@ const Game = {
     }
 
     // Aiming reticle
-    const aimY = LANE_Y[bg.aiming];
+    const aimY = bg.aimLanes[bg.aiming];
     ctx.strokeStyle = '#FFD70088';
     ctx.lineWidth = 1;
     ctx.setLineDash([3, 3]);
