@@ -2175,8 +2175,8 @@ const Game = {
 
     // Buttons
     const btnX = W / 2 - btnW / 2;
-    const btnGap = btnH + 6;
-    const btnStart = isMobile ? 140 : 148;
+    const btnGap = isMobile ? btnH + 2 : btnH + 6;
+    const btnStart = isMobile ? 134 : 148;
     drawButton(ctx, btnX, btnStart, btnW, btnH, 'PLAY', '#D5AAFF', '#FFF');
     drawButton(ctx, btnX, btnStart + btnGap, btnW, btnH, 'CARNIVAL', '#FFB5E8', '#FFF');
     drawButton(ctx, btnX, btnStart + btnGap * 2, btnW, btnH, 'CLOSET', '#85E3FF', '#FFF');
@@ -2190,22 +2190,30 @@ const Game = {
     ctx.fillStyle = '#FFF';
     ctx.fillText(SaveData.data.diamondBalance + '', W - 28, 18);
 
-    // Button clicks
-    if (Input.clickInRect(btnX, btnStart, btnW, btnH)) {
-      this.state = 'LEVEL_SELECT';
-    }
-    if (Input.clickInRect(btnX, btnStart + btnGap, btnW, btnH)) {
-      this.initCarnival();
-      this.state = 'CARNIVAL';
-    }
-    if (Input.clickInRect(btnX, btnStart + btnGap * 2, btnW, btnH)) {
-      this.state = 'CLOSET';
-      this.closetCategory = 0;
-    }
-    if (Input.clickInRect(btnX, btnStart + btnGap * 3, btnW, btnH)) {
-      this.state = 'HOW_TO_PLAY';
-      this.howToPlayPage = 0;
-      this.initTutorialPage(0);
+    // Check if an overlay is active (landscape prompt or PWA prompt) - skip button clicks
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+    const pwaOverlayActive = isMobile && !isStandalone && !this.pwaPromptDismissed;
+    const landscapeOverlayActive = isMobile && this.landscapePromptTimer > 0;
+    const overlayActive = landscapeOverlayActive || pwaOverlayActive;
+
+    // Button clicks (only when no overlay is blocking)
+    if (!overlayActive) {
+      if (Input.clickInRect(btnX, btnStart, btnW, btnH)) {
+        this.state = 'LEVEL_SELECT';
+      }
+      if (Input.clickInRect(btnX, btnStart + btnGap, btnW, btnH)) {
+        this.initCarnival();
+        this.state = 'CARNIVAL';
+      }
+      if (Input.clickInRect(btnX, btnStart + btnGap * 2, btnW, btnH)) {
+        this.state = 'CLOSET';
+        this.closetCategory = 0;
+      }
+      if (Input.clickInRect(btnX, btnStart + btnGap * 3, btnW, btnH)) {
+        this.state = 'HOW_TO_PLAY';
+        this.howToPlayPage = 0;
+        this.initTutorialPage(0);
+      }
     }
 
     // Landscape orientation prompt (mobile portrait only)
@@ -2226,7 +2234,7 @@ const Game = {
     }
 
     // PWA install prompt (mobile, not already installed)
-    if (isMobile && !window.matchMedia('(display-mode: standalone)').matches && !this.pwaPromptDismissed && this.landscapePromptTimer <= 0) {
+    if (pwaOverlayActive && !landscapeOverlayActive) {
       ctx.fillStyle = 'rgba(0,0,0,0.75)';
       ctx.fillRect(0, 0, W, H);
       ctx.fillStyle = '#FFFFFFEE';
@@ -2238,7 +2246,7 @@ const Game = {
       ctx.fillText('Install Fairylandia!', W/2, H/2 - 42);
       ctx.fillStyle = '#555';
       ctx.font = '8px monospace';
-      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
       if (isIOS) {
         ctx.fillText('Tap the share button', W/2, H/2 - 22);
         ctx.fillText('then "Add to Home Screen"', W/2, H/2 - 10);
