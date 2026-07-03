@@ -23,6 +23,7 @@ canvas { cursor: default; display: block; touch-action: none; -webkit-touch-call
 // ============================================================
 
 // --- CONFIGURATION ---
+const GAME_VERSION = 'v1.0.0'; // Bump on each release; keep sw.js CACHE_NAME in sync
 const W = 480, H = 270; // Logical resolution
 const RSCALE = 2; // Render at 2x for smooth look
 const LANE_Y = [95, 150, 205]; // Top, Mid, Bottom lane centers
@@ -2426,6 +2427,13 @@ const Game = {
     drawMegagem(ctx, W - 20, 30, this.frame);
     ctx.fillStyle = '#FFF';
     ctx.fillText(SaveData.data.megagems + '', W - 28, 33);
+
+    // Version label (bottom-right corner)
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.font = 'bold 7px monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText(GAME_VERSION, W - 4, H - 4);
+    ctx.textAlign = 'left';
 
     // Check if an overlay is active (landscape prompt or PWA prompt) - skip button clicks
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;

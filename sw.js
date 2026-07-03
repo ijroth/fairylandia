@@ -1,4 +1,4 @@
-const CACHE_NAME = 'fairylandia-v6';
+const CACHE_NAME = 'fairylandia-v7'; // v1.0.0
 const ASSETS = ['index.html', 'manifest.json'];
 
 self.addEventListener('install', e => {
